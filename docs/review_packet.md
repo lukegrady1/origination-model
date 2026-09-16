@@ -31,7 +31,7 @@ settles timestamped odds on paper, and shows saved artifacts in a Streamlit dash
 |---|---|---|
 | A01 | Met | `uv sync --frozen` then `demo --offline` runs from fixtures in ~37 s; CI does the same with network blocked (`tests/conftest.py`, `.github/workflows/ci.yml`) |
 | A02 | Met with note | `validate-data --seasons 2010:2025`: 16 seasons audited; one 2022 game absent from the source is reported in `coverage_report.json` notes and every report's samples table, not as an exclusion row (see deviations) |
-| A03 | Met after R1 fix | `labels.parquet` separate from features; `tests/unit/test_temporal.py`, `test_models_and_leakage.py`, `test_review_regressions.py::test_r1_*`; data mode appears in every manifest, prediction row and report. `recorded_asof` still has no prospective snapshots, so it is enforced, not exercised, on real data |
+| A03 | Met after R1 + F1/F2 fixes | `labels.parquet` separate from features; `tests/unit/test_temporal.py`, `test_models_and_leakage.py`, `test_review_regressions.py::test_r1_*`, `test_followup_regressions.py`; data mode appears in every manifest, prediction row and report. Availability fields are mandatory at every training/forecast boundary; stale caches are invalidated; unknown observation times are ineligible. `recorded_asof` still has no prospective snapshots and no cached-version selection, so it is enforced, not exercised, on real data |
 | A04 | Met | Development/confirmation/holdout runs score B0, M1 and the EPA-free ablation on identical grouped folds (`evaluation/splits.py`, `test_fold_grouping_and_scaler_isolation`) |
 | A05 | Met | Residual pools use only prior out-of-fold seasons (≥512 games); PMF/support/covariance checks in `tests/unit/test_distribution.py` |
 | A06 | Met | `tests/unit/test_pricing.py` exact fixtures (24–21, 20–20, ±150/−200, EV 0.1454545, 1.8 zero-EV, quarter lines rejected) |
@@ -69,6 +69,17 @@ Numerical research outputs affected: none for the committed development/confirma
 artifacts (all `historical_reconstruction`, where the new filters select the same rows). The
 2026 forecast bundles were refit and the forecast slates regenerated under the new horizon
 semantics.
+
+## Follow-up review (F1, F2)
+
+| Finding | Fix | Tests |
+|---|---|---|
+| F1 old cached features bypassed the corrected builder | `FEATURE_VERSION` → `"2"`, `SCHEMA_VERSION` → `2` (new cache key); `experiment._load_valid_feature_cache` validates any cache hit against the current features schema, feature version and data mode, moves an invalid file aside with an `.invalidated.json` record, and rebuilds; `require_availability_fields` makes `insufficient_warmup`/`unobserved_inputs` and the current feature version mandatory in `usable_rows`, `require_forecastable`, `fit_score_model` and `predict_game`. The 2026 bundles were refit under version 2 (`fit-20260916T185415Z-b671ea`) and the slates regenerated | `test_followup_regressions.py::test_f1_*` (cache-loading path with a seeded old-format cache and a wrong-mode cache; boundary rejection of missing fields and stale versions) |
+| F2 missing PBP observation timestamps were treated as known | `aggregate_team_games` normalizes both observation columns to tz-aware UTC (naive or unparseable → `ModelValidationError`), and sets the combined time only when **both** schedule and PBP times are known; otherwise `NaT`, which `AsOfPolicy.eligible_mask` treats as ineligible. A missing PBP observation column is unknown, not known. `eligible_mask` also validates the dtype of the observation series | `test_followup_regressions.py::test_f2_*` (all four known/unknown combinations, missing column, deliberate dtype errors, aggregation-to-feature mutation test) |
+
+Frozen research artifacts remain untouched; the version bump changes the feature cache key and
+bundle versions only. Old bundles (schema 1) are refused by `ModelBundle.load`, so pre-fix
+bundles can no longer be used for forecasting.
 
 ## Deviations and open items
 

@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from nfl_origination.config import DistributionConfig, FeaturesConfig
 from nfl_origination.errors import MissingDataError, ModelValidationError
 from nfl_origination.features.asof import AsOfPolicy
+from nfl_origination.features.builder import require_availability_fields, usable_rows
 from nfl_origination.models.baseline import LeagueBaselineModel
 from nfl_origination.models.distribution import (
     ResidualParams,
@@ -160,7 +161,7 @@ def fit_score_model(
     """Fit on labeled rows only. Returns the model and the training frame used."""
     assert_no_market_columns(list(features.columns), "fit_score_model")
     train = align_labels(features, labels)
-    train = train[~train["insufficient_warmup"]]
+    train = train[usable_rows(train)]
     if train.empty:
         raise MissingDataError("no labeled feature rows available for training")
     model = make_model(spec)
@@ -251,7 +252,8 @@ def predict_game(
                 f"feature rows were built under {sorted(modes)} but the bundle was trained "
                 f"under {bundle.data_mode!r}; provenance would be mislabeled"
             )
-    if "unobserved_inputs" in game_features.columns and game_features["unobserved_inputs"].any():
+    require_availability_fields(game_features, "predict_game")
+    if game_features["unobserved_inputs"].any():
         raise MissingDataError("game has inputs not observed at the cutoff; cannot forecast")
     if (
         "feature_version" in game_features.columns

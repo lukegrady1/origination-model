@@ -34,6 +34,20 @@ DEFENSE_NUMERIC = [
 ]
 
 
+def _utc_or_fail(series: pd.Series, name: str) -> pd.Series:
+    """Coerce an observation-time column to tz-aware UTC; unparseable values are an error."""
+    if isinstance(series.dtype, pd.DatetimeTZDtype):
+        return series.dt.tz_convert("UTC")
+    if series.isna().all():
+        return pd.Series(pd.NaT, index=series.index, dtype="datetime64[ns, UTC]")
+    if pd.api.types.is_datetime64_any_dtype(series):
+        raise ModelValidationError(f"{name} is a naive datetime; observation times must be UTC")
+    try:
+        return pd.to_datetime(series, utc=True, format="ISO8601")
+    except (ValueError, TypeError) as exc:
+        raise ModelValidationError(f"{name} has unparseable observation timestamps") from exc
+
+
 def eligible_play_mask(plays: pd.DataFrame) -> pd.Series:
     """Scrimmage plays with valid teams in Q1–Q4 that are a dropback or a designed rush."""
     qtr = plays["qtr"].astype("Float64")
@@ -124,21 +138,28 @@ def aggregate_team_games(
     for c in OFFENSE_NUMERIC + DEFENSE_NUMERIC:
         tg[c] = tg[c].astype(float)
     tg["has_pbp"] = tg["off_eligible_plays"].notna()
-    if "first_observed_utc" in games.columns:
-        sched = games[["game_id", "first_observed_utc"]].rename(
-            columns={"first_observed_utc": "schedule_first_observed_utc"}
-        )
-        tg = tg.merge(sched, on="game_id", how="left")
+    if "first_observed_utc" in games.columns or pbp_observed is not None:
+        if "first_observed_utc" in games.columns:
+            sched = games[["game_id", "first_observed_utc"]].rename(
+                columns={"first_observed_utc": "schedule_first_observed_utc"}
+            )
+            tg = tg.merge(sched, on="game_id", how="left")
+        else:
+            tg["schedule_first_observed_utc"] = pd.NaT
         if pbp_observed is not None:
             tg = tg.merge(pbp_observed, on="game_id", how="left")
         else:
             tg["pbp_first_observed_utc"] = pd.NaT
-        # a team-game row is observed only once BOTH its schedule row and its PBP were observed
-        tg["first_observed_utc"] = tg[
-            ["schedule_first_observed_utc", "pbp_first_observed_utc"]
-        ].max(axis=1)
-        for c in ("schedule_first_observed_utc", "pbp_first_observed_utc", "first_observed_utc"):
-            tg[c] = pd.to_datetime(tg[c], utc=True)
+        sched_obs = _utc_or_fail(tg["schedule_first_observed_utc"], "schedule_first_observed_utc")
+        pbp_obs = _utc_or_fail(tg["pbp_first_observed_utc"], "pbp_first_observed_utc")
+        tg["schedule_first_observed_utc"] = sched_obs
+        tg["pbp_first_observed_utc"] = pbp_obs
+        # A team-game row is observed only once BOTH its schedule row and its PBP were observed.
+        # An unknown observation time for either source leaves the row's time unknown (NaT), which
+        # the as-of policy treats as ineligible; one source never stands in for the other.
+        both_known = sched_obs.notna() & pbp_obs.notna()
+        combined = pd.concat([sched_obs, pbp_obs], axis=1).max(axis=1)
+        tg["first_observed_utc"] = pd.to_datetime(combined.where(both_known, pd.NaT), utc=True)
     tg = tg.sort_values(["kickoff_utc", "game_id", "team_id"]).reset_index(drop=True)
     tg["source_hash"] = hash_frame(tg[["game_id", "team_id", "points_for", "points_against"]])
     validate_frame(tg, TEAM_GAMES_SCHEMA)

@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from nfl_origination.config import FeaturesConfig
-from nfl_origination.errors import MissingDataError
+from nfl_origination.errors import MissingDataError, ModelValidationError
 from nfl_origination.features.asof import AsOfPolicy
 from nfl_origination.features.rolling import ShrinkageParams, league_priors, rolling_metrics
 from nfl_origination.provenance import hash_frame
@@ -377,22 +377,43 @@ def features_hash(features: pd.DataFrame) -> str:
     return hash_frame(features)
 
 
+AVAILABILITY_FIELDS = ("insufficient_warmup", "unobserved_inputs")
+
+
+def require_availability_fields(features: pd.DataFrame, context: str) -> None:
+    """The availability flags are mandatory at every training/forecast boundary."""
+    missing = [c for c in AVAILABILITY_FIELDS if c not in features.columns]
+    if missing:
+        raise ModelValidationError(
+            f"{context}: feature rows lack availability fields {missing}; they were built by an "
+            f"older feature version and must be rebuilt (current feature version {FEATURE_VERSION})"
+        )
+    if "feature_version" in features.columns and len(features):
+        versions = set(features["feature_version"].astype(str))
+        if versions != {FEATURE_VERSION}:
+            raise ModelValidationError(
+                f"{context}: feature rows have feature_version {sorted(versions)}; "
+                f"current is {FEATURE_VERSION}"
+            )
+
+
 def usable_rows(features: pd.DataFrame) -> pd.Series:
     """Rows whose every input satisfied the availability policy at the cutoff."""
+    require_availability_fields(features, "usable_rows")
     ok = ~features["insufficient_warmup"].astype(bool)
-    if "unobserved_inputs" in features.columns:
-        ok &= ~features["unobserved_inputs"].astype(bool)
+    ok &= ~features["unobserved_inputs"].astype(bool)
     return ok
 
 
 def require_forecastable(features: pd.DataFrame) -> None:
+    require_availability_fields(features, "require_forecastable")
     bad_prior = features[features["insufficient_warmup"]]
     if len(bad_prior):
         raise MissingDataError(
             f"{bad_prior['game_id'].nunique()} games lack an eligible league prior warm-up; "
             "cannot forecast"
         )
-    if "unobserved_inputs" in features.columns and features["unobserved_inputs"].any():
+    if features["unobserved_inputs"].any():
         n = features[features["unobserved_inputs"]]["game_id"].nunique()
         raise MissingDataError(
             f"{n} games have schedule rows not observed at the cutoff (recorded_asof); "

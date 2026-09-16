@@ -1,6 +1,6 @@
-# NFL Origination Model — forecast run `forecast-20260916T182937Z-1388f7`
+# NFL Origination Model — forecast run `forecast-20260916T185418Z-1704bd`
 
-Created 2026-09-16T18:29:37.408518Z · data mode `historical_reconstruction` · forecast policy `kickoff_minus_24h` · git `32b16ea1d71943400c1409cb2bcc581b53f1caf0` (dirty) · config hash `6a0abc279a98`
+Created 2026-09-16T18:54:18.584647Z · data mode `historical_reconstruction` · forecast policy `kickoff_minus_24h` · git `38c2bea2cbbb88b292bb3c1e10f945a0fc96bee9` (dirty) · config hash `6a0abc279a98`
 
 Forecast slate `2026_week1` · model `M1_ridge_alpha100` · policy `kickoff_minus_24h`
 
@@ -41,7 +41,7 @@ unavailable: no eligible timestamped odds
 
 ```json
 {
- "run_id": "forecast-20260916T182937Z-1388f7",
+ "run_id": "forecast-20260916T185418Z-1704bd",
  "config_hash": "6a0abc279a98c4481f6d0fbd5dbb2858a7b99998cfafc54cd7f01f4a97015593",
  "source_file_hashes": {
   "pbp/2010": "d2ef9c407319719910ad8de8c4c1b88f0ea945ffb3f78f48ef32fa3ed3a7573b",
@@ -64,7 +64,7 @@ unavailable: no eligible timestamped odds
   "schedules/all": "fa6684321ed9d08ee7496dfa9a4d345e9445cba7e8842c42f383ad524dc442d0"
  },
  "output_hashes": {
-  "predictions.parquet": "ce4ddd4bcdd0e0f5feef8f3b1e656c7e0244aacbd2f46bab386d5d4005d2cc0e"
+  "predictions.parquet": "6cba27c2537cb7a1625695ecf4dc455e77cfa4fb2eb76bd40565503b24ee54f4"
  },
  "dependency_versions": {
   "duckdb": "1.5.5",

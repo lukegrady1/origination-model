@@ -13,8 +13,8 @@ import pandas as pd
 
 from nfl_origination.errors import ModelValidationError
 
-SCHEMA_VERSION = 1
-FEATURE_VERSION = "1"
+SCHEMA_VERSION = 2  # v2: features carry unobserved_inputs and prior provenance
+FEATURE_VERSION = "2"  # v2: priors/rest/labels/observation times obey the as-of policy
 
 # Market-derived columns are quarantined and can never be model inputs.
 MARKET_COLUMN_PREFIXES = ("market_", "ref_", "book_", "quote_")
@@ -200,12 +200,12 @@ FEATURES_SCHEMA = ArtifactSchema(
         **{c: "float" for c in FEATURE_COLUMNS_FULL},
         "insufficient_warmup": "bool",
         "unobserved_inputs": "bool",
+        "prior_games_hash": "str",
     },
     optional={
         "max_observed_utc": "datetime",
         "team_source_game_ids": "str",
         "opp_source_game_ids": "str",
-        "prior_games_hash": "str",
     },
 )
 

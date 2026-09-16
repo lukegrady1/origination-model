@@ -96,6 +96,13 @@ uv run nfl-origination backtest --config configs/holdout.yaml --offline --rerun-
 
 The holdout was not rerun and its artifacts are unchanged.
 
+Follow-up review (F1 stale caches, F2 unknown observation times): feature/schema version 2,
+validated cache loading with invalidation records, mandatory availability fields at every
+boundary, NaT-safe observation-time combination. Commands: `build-features` (new cache key
+`features_b023b9b97005b5dd`), `fit --through-season 2025` (`fit-20260916T185415Z-b671ea`),
+live week 3 and week 1 reconstruction forecasts regenerated. Tests: 142 pass with network
+blocked (10 new in `tests/unit/test_followup_regressions.py`).
+
 ## Unresolved blockers / open questions for planning
 
 - No timestamped odds source; market comparison and ROI remain "unavailable" on real data.

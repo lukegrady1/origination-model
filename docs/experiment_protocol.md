@@ -69,8 +69,14 @@ Correctness pass after the 2026-09-16 implementation review (findings R1–R7):
 - R6: away-spread line CLV sign corrected (synthetic-demo mechanics only; no real odds).
 - R7: model-card and recap wording now states exactly which intervals exclude zero.
 
+Follow-up findings F1/F2: feature and schema versions were bumped to 2 (stale feature caches
+are now invalidated rather than reused; availability fields are mandatory; unknown observation
+times are ineligible). The 2026 bundles were refit again under version 2
+(`fit-20260916T185415Z-b671ea`) and the forecast slates regenerated.
+
 No backtest numerics changed for the frozen data mode; the development, confirmation and
-holdout artifacts are the originals.
+holdout artifacts are the originals (they record schema/feature version 1, which is what they
+were produced with).
 
 ## Measures reported
 

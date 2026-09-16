@@ -94,3 +94,11 @@ output hashes and notes. Rerunning the same config on the same cache reproduces 
   from the current configuration or whose training data mode differs from the feature rows.
 - The frozen protocol digests the research-relevant source tree (excluding dashboard, CLI and
   report rendering) and `uv.lock`; protocols frozen before this exist are refused for reruns.
+- Feature caches are keyed by source hashes, policy, feature config and feature/schema version,
+  and are additionally validated on every hit (schema, feature version, data mode); an invalid
+  cache is moved aside with an `.invalidated.json` record and rebuilt.
+- Availability fields (`insufficient_warmup`, `unobserved_inputs`) and the current feature
+  version are mandatory at every training/forecast boundary; their absence is an error, never
+  permission to continue.
+- A team-game row's observation time is known only when both its schedule and play-by-play
+  observation times are known; unknown means ineligible under `recorded_asof`.

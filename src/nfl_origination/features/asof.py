@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from nfl_origination.config import DataMode
+from nfl_origination.errors import ModelValidationError
 
 HOUR = pd.Timedelta(hours=1)
 
@@ -41,6 +42,21 @@ class AsOfPolicy:
         if self.mode == "recorded_asof":
             if first_observed_utc is None:
                 return np.zeros(len(mask), dtype=bool)
-            observed = first_observed_utc <= cutoff_utc
+            observed_at = _observation_series(first_observed_utc)
+            observed = observed_at <= cutoff_utc  # NaT compares False: unknown is ineligible
             mask = mask & observed.fillna(False).to_numpy(dtype=bool)
         return mask
+
+
+def _observation_series(series: pd.Series) -> pd.Series:
+    """Observation times must be tz-aware UTC or entirely unknown; anything else is an error."""
+    if isinstance(series.dtype, pd.DatetimeTZDtype):
+        return series.dt.tz_convert("UTC")
+    if series.isna().all():
+        return pd.Series(pd.NaT, index=series.index, dtype="datetime64[ns, UTC]")
+    if pd.api.types.is_datetime64_any_dtype(series):
+        raise ModelValidationError("first_observed_utc is a naive datetime; UTC required")
+    try:
+        return pd.to_datetime(series, utc=True, format="ISO8601")
+    except (ValueError, TypeError) as exc:
+        raise ModelValidationError("first_observed_utc has unparseable timestamps") from exc

@@ -1,6 +1,8 @@
 # Data dictionary
 
-Schema version 1, feature version 1. Identifiers are strings, counts integers, probabilities
+Schema version 2, feature version 2 (v2 adds `unobserved_inputs`, `prior_games_hash`, and
+as-of availability for priors, rest, labels and observation times; the frozen 2025 research
+artifacts were produced under version 1 and are preserved as such). Identifiers are strings, counts integers, probabilities
 float64, timestamps tz-aware UTC. Missing values stay null until the logged training-only median
 imputation inside `models/ridge.py`.
 

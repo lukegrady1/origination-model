@@ -40,6 +40,7 @@ from nfl_origination.features.builder import (
     build_features,
     build_labels,
     features_hash,
+    require_availability_fields,
     require_forecastable,
     usable_rows,
 )
@@ -79,6 +80,7 @@ from nfl_origination.provenance import (
 )
 from nfl_origination.schemas import (
     FEATURE_VERSION,
+    FEATURES_SCHEMA,
     PREDICTIONS_SCHEMA,
     SCHEMA_VERSION,
     assert_no_market_columns,
@@ -180,8 +182,11 @@ def prepare_dataset(
     key = _feature_cache_key(config, manifest.file_hashes())
     feat_path = config.data.features_dir / f"features_{key}.parquet"
     completed = data.games[data.games["status"] == "final"]
-    if feat_path.exists() and not rebuild:
-        feats = pd.read_parquet(feat_path)
+    cached = (
+        _load_valid_feature_cache(feat_path, policy) if feat_path.exists() and not rebuild else None
+    )
+    if cached is not None:
+        feats = cached
     else:
         feats = build_features(completed, team_games, policy, config.features)
         write_parquet(feats, feat_path)
@@ -202,6 +207,32 @@ def prepare_dataset(
         policy,
         data.observed_at,
     )
+
+
+def _load_valid_feature_cache(path: Path, policy: AsOfPolicy) -> pd.DataFrame | None:
+    """Accept a cached feature file only if it satisfies the current contract; else rebuild.
+
+    A cache is never trusted on file name alone: it must validate against the current features
+    schema, carry the current feature version, and match the data mode. Invalid caches are
+    renamed aside (never silently reused) and the features are rebuilt.
+    """
+    try:
+        cached = pd.read_parquet(path)
+        validate_frame(cached, FEATURES_SCHEMA)
+        require_availability_fields(cached, "feature cache")
+        modes = set(cached["data_mode"].astype(str)) if len(cached) else {policy.mode}
+        if modes != {policy.mode}:
+            raise ModelValidationError(f"cached data mode {sorted(modes)} != {policy.mode}")
+    except (ModelValidationError, KeyError, ValueError, OSError) as exc:
+        stamp = utc_now().strftime("%Y%m%dT%H%M%SZ")
+        stale = path.with_name(f"{path.stem}.stale-{stamp}.parquet")
+        path.replace(stale)
+        write_json(
+            path.with_suffix(".invalidated.json"),
+            {"reason": str(exc), "moved_to": str(stale), "feature_version": FEATURE_VERSION},
+        )
+        return None
+    return cached
 
 
 # ----------------------------------------------------------------------------------------------
