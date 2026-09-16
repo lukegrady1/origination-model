@@ -1,0 +1,7 @@
+game_id,season,game_type,week,gameday,weekday,gametime,away_team,away_score,home_team,home_score,location,overtime,spread_line,total_line,home_moneyline,away_moneyline
+2023_01_AAA_BBB,2023,REG,1,2023-09-10,Sunday,13:00,AAA,20,BBB,27,Home,0,3.0,44.5,-150,130
+2023_01_CCC_DDD,2023,REG,1,2023-09-10,Sunday,16:25,CCC,24,DDD,24,Home,1,-1.5,47.0,120,-140
+2023_02_BBB_CCC,2023,REG,2,2023-09-17,Sunday,13:00,BBB,17,CCC,31,Neutral,0,2.5,41.5,-130,110
+2023_02_DDD_AAA,2023,REG,2,2023-09-18,Monday,20:15,DDD,10,AAA,13,Home,0,7.0,38.5,-300,250
+2023_03_AAA_CCC,2023,REG,3,2023-11-05,Sunday,13:00,AAA,21,CCC,28,Home,0,3.5,45.5,-170,145
+2023_19_AAA_BBB,2023,WC,19,2024-01-13,Saturday,16:30,AAA,7,BBB,30,Home,0,9.5,40.0,-450,350

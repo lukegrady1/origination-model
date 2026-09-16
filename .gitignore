@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.DS_Store
+nohup.out
+
+# Raw source data, normalized data, features, user odds, and model binaries are
+# reproducible from the CLI and are not committed.
+data/raw/
+data/normalized/
+data/features/
+data/user/
+artifacts/
+
+# Reports: only the sanitized final review outputs are committed.
+reports/*
+!reports/.gitkeep
+!reports/README.md
+!reports/final/
+!reports/final/**

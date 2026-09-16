@@ -1,0 +1,150 @@
+{
+  "epa_free": {
+    "candidates": [
+      {
+        "alpha": 1.0,
+        "model_id": "M1_ridge_epa_free_alpha1",
+        "n_games": 1583,
+        "per_season_score_mae": {
+          "2018": 7.6570282268418115,
+          "2019": 7.556914528403322,
+          "2020": 7.599768052147956,
+          "2021": 8.020871812892585,
+          "2022": 7.076926095221669,
+          "2023": 7.555952448993173
+        },
+        "pooled_score_mae": 7.577418280309936
+      },
+      {
+        "alpha": 10.0,
+        "model_id": "M1_ridge_epa_free_alpha10",
+        "n_games": 1583,
+        "per_season_score_mae": {
+          "2018": 7.656461140293963,
+          "2019": 7.557507510804754,
+          "2020": 7.600153728521269,
+          "2021": 8.021162277233676,
+          "2022": 7.076764339438339,
+          "2023": 7.554902076013182
+        },
+        "pooled_score_mae": 7.577326575649811
+      },
+      {
+        "alpha": 100.0,
+        "model_id": "M1_ridge_epa_free_alpha100",
+        "n_games": 1583,
+        "per_season_score_mae": {
+          "2018": 7.654093061480101,
+          "2019": 7.562851918338022,
+          "2020": 7.605492886560597,
+          "2021": 8.023805513247286,
+          "2022": 7.075432606491071,
+          "2023": 7.545245912386752
+        },
+        "pooled_score_mae": 7.577238356237833
+      },
+      {
+        "alpha": 1000.0,
+        "model_id": "M1_ridge_epa_free_alpha1000",
+        "n_games": 1583,
+        "per_season_score_mae": {
+          "2018": 7.699415264127524,
+          "2019": 7.6504100754001225,
+          "2020": 7.667729725170583,
+          "2021": 8.059053128824132,
+          "2022": 7.087110823309349,
+          "2023": 7.523339887333953
+        },
+        "pooled_score_mae": 7.613084036686405
+      }
+    ],
+    "development_seasons": [
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023
+    ],
+    "feature_set": "epa_free",
+    "rule": "min pooled game-level score MAE over development seasons; ties within 0.01 points resolved toward the larger alpha",
+    "selected_alpha": 100.0,
+    "selected_model_id": "M1_ridge_epa_free_alpha100"
+  },
+  "frozen_before": {
+    "confirmation_season": 2024,
+    "holdout_season": 2025
+  },
+  "full": {
+    "candidates": [
+      {
+        "alpha": 1.0,
+        "model_id": "M1_ridge_alpha1",
+        "n_games": 1583,
+        "per_season_score_mae": {
+          "2018": 7.583945599200009,
+          "2019": 7.575147252523916,
+          "2020": 7.5365771000779604,
+          "2021": 8.036863530368134,
+          "2022": 7.074744887665844,
+          "2023": 7.588933175983701
+        },
+        "pooled_score_mae": 7.56637023142541
+      },
+      {
+        "alpha": 10.0,
+        "model_id": "M1_ridge_alpha10",
+        "n_games": 1583,
+        "per_season_score_mae": {
+          "2018": 7.585556588158456,
+          "2019": 7.563974003177686,
+          "2020": 7.5393592693116265,
+          "2021": 8.033399546386065,
+          "2022": 7.080672360131316,
+          "2023": 7.588848961562763
+        },
+        "pooled_score_mae": 7.565678842756472
+      },
+      {
+        "alpha": 100.0,
+        "model_id": "M1_ridge_alpha100",
+        "n_games": 1583,
+        "per_season_score_mae": {
+          "2018": 7.585279060132578,
+          "2019": 7.562003006734163,
+          "2020": 7.5396563187704135,
+          "2021": 8.033212869562764,
+          "2022": 7.087234086156148,
+          "2023": 7.586162667052393
+        },
+        "pooled_score_mae": 7.565992931162824
+      },
+      {
+        "alpha": 1000.0,
+        "model_id": "M1_ridge_alpha1000",
+        "n_games": 1583,
+        "per_season_score_mae": {
+          "2018": 7.599997927776372,
+          "2019": 7.593290898723919,
+          "2020": 7.556360734858279,
+          "2021": 8.05413148206555,
+          "2022": 7.107089339725076,
+          "2023": 7.561139798225853
+        },
+        "pooled_score_mae": 7.578828355661751
+      }
+    ],
+    "development_seasons": [
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023
+    ],
+    "feature_set": "full",
+    "rule": "min pooled game-level score MAE over development seasons; ties within 0.01 points resolved toward the larger alpha",
+    "selected_alpha": 100.0,
+    "selected_model_id": "M1_ridge_alpha100"
+  }
+}

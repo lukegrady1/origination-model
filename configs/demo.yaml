@@ -1,0 +1,54 @@
+# Offline demo: deterministic SYNTHETIC seasons, full statistical protocol, no network.
+# Evaluation thresholds are identical to production; only the calendar is synthetic and shorter.
+schema_version: 1
+seed: 42
+run:
+  kind: demo
+  label: demo
+  artifacts_dir: artifacts/demo
+  reports_dir: reports/demo
+data:
+  seasons: [2010, 2020]
+  game_type: REG
+  mode: historical_reconstruction
+  completed_game_lag_hours: 48
+  source: synthetic
+forecast:
+  cutoff_hours_before_kickoff: 24
+features:
+  history_games: 16
+  half_life_games: 8
+  offseason_weight: 0.5
+  prior_seasons: 2
+  shrinkage_plays: 200
+  shrinkage_split_plays: 100
+  shrinkage_games: 4
+model:
+  family: ridge_score
+  alpha_candidates: [1, 10, 100, 1000]
+  selected_alpha: null
+  train_start_season: 2012
+  residual_first_season: 2016
+  residual_window_seasons: 5
+  min_residual_games: 500
+  covariance_diagonal_shrinkage: 0.1
+distribution:
+  initial_max_score: 100
+  score_step: 25
+  hard_max_score: 250
+  max_omitted_mass: 1.0e-8
+evaluation:
+  development_seasons: [2018]
+  confirmation_season: 2019
+  holdout_season: 2020
+  bootstrap_replicates: 1000
+market:
+  enabled: true
+  bookmaker: synthetic_book
+  odds_path: tests/fixtures/synthetic/odds_synthetic.csv
+  synthetic: true
+  max_quote_age_minutes: 60
+  min_ev: 0.03
+  stake_units: 1
+  max_selections_per_game: 1
+  moneyline_settlement_rule: two_way_tie_void
