@@ -68,6 +68,10 @@ def aggregate_offense(plays: pd.DataFrame) -> pd.DataFrame:
         yds_ok & ((db & (yds >= EXPLOSIVE_DROPBACK_YARDS)) | (ru & (yds >= EXPLOSIVE_RUSH_YARDS)))
     ).astype(float)
     agg = p.groupby(["game_id", "posteam"], as_index=False)[OFFENSE_NUMERIC].sum()
+    if "first_observed_utc" in p.columns:
+        observed = p.groupby(["game_id", "posteam"], as_index=False)["first_observed_utc"].max()
+        observed = observed.rename(columns={"first_observed_utc": "pbp_first_observed_utc"})
+        agg = agg.merge(observed, on=["game_id", "posteam"], how="left")
     return agg.rename(columns={"posteam": "team_id"})
 
 
@@ -105,6 +109,10 @@ def aggregate_team_games(
         rows.append(part)
     tg = pd.concat(rows, ignore_index=True)
     tg["game_count"] = tg["game_count"].astype(np.int64)
+    pbp_observed = None
+    if "pbp_first_observed_utc" in offense.columns:
+        pbp_observed = offense.groupby("game_id", as_index=False)["pbp_first_observed_utc"].max()
+        offense = offense.drop(columns=["pbp_first_observed_utc"])
     tg = tg.merge(offense, on=["game_id", "team_id"], how="left")
     opp_off = offense.rename(columns={"team_id": "opponent_id"}).rename(
         columns={
@@ -117,7 +125,20 @@ def aggregate_team_games(
         tg[c] = tg[c].astype(float)
     tg["has_pbp"] = tg["off_eligible_plays"].notna()
     if "first_observed_utc" in games.columns:
-        tg = tg.merge(games[["game_id", "first_observed_utc"]], on="game_id", how="left")
+        sched = games[["game_id", "first_observed_utc"]].rename(
+            columns={"first_observed_utc": "schedule_first_observed_utc"}
+        )
+        tg = tg.merge(sched, on="game_id", how="left")
+        if pbp_observed is not None:
+            tg = tg.merge(pbp_observed, on="game_id", how="left")
+        else:
+            tg["pbp_first_observed_utc"] = pd.NaT
+        # a team-game row is observed only once BOTH its schedule row and its PBP were observed
+        tg["first_observed_utc"] = tg[
+            ["schedule_first_observed_utc", "pbp_first_observed_utc"]
+        ].max(axis=1)
+        for c in ("schedule_first_observed_utc", "pbp_first_observed_utc", "first_observed_utc"):
+            tg[c] = pd.to_datetime(tg[c], utc=True)
     tg = tg.sort_values(["kickoff_utc", "game_id", "team_id"]).reset_index(drop=True)
     tg["source_hash"] = hash_frame(tg[["game_id", "team_id", "points_for", "points_against"]])
     validate_frame(tg, TEAM_GAMES_SCHEMA)

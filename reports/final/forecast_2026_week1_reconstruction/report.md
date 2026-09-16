@@ -1,29 +1,29 @@
-# NFL Origination Model — forecast run `forecast-20260916T175305Z-6f5afe`
+# NFL Origination Model — forecast run `forecast-20260916T182937Z-1388f7`
 
-Created 2026-09-16T17:53:05.934629Z · data mode `historical_reconstruction` · forecast policy `kickoff_minus_24h` · git `518434a9d3a2e56d284c8a8bc701b181e3da819d` (dirty) · config hash `6a0abc279a98`
+Created 2026-09-16T18:29:37.408518Z · data mode `historical_reconstruction` · forecast policy `kickoff_minus_24h` · git `32b16ea1d71943400c1409cb2bcc581b53f1caf0` (dirty) · config hash `6a0abc279a98`
 
-Forecast slate `2026_week2` · model `M1_ridge_alpha100` · policy `kickoff_minus_24h`
+Forecast slate `2026_week1` · model `M1_ridge_alpha100` · policy `kickoff_minus_24h`
 
 ## Slate
 
 | game | kickoff (UTC) | cutoff (UTC) | fair home handicap | fair total | home ML | away ML | P(tie) | flags |
 |---|---|---|---|---|---|---|---|---|
-| DET @ BUF | 2026-09-18 00:15 | 2026-09-17 00:15 | -5.5000 | 52.0000 | -201.9089 | 201.9089 | 0.0278 | cutoff_in_future_features_from_current_cache |
-| CAR @ ATL | 2026-09-20 17:00 | 2026-09-19 17:00 | -3.0000 | 46.0000 | -145.7239 | 145.7239 | 0.0297 | cutoff_in_future_features_from_current_cache |
-| CIN @ HOU | 2026-09-20 17:00 | 2026-09-19 17:00 | -3.5000 | 49.5000 | -152.5752 | 152.5752 | 0.0294 | cutoff_in_future_features_from_current_cache |
-| CLE @ TB | 2026-09-20 17:00 | 2026-09-19 17:00 | -6.0000 | 41.5000 | -212.8493 | 212.8493 | 0.0277 | cutoff_in_future_features_from_current_cache |
-| GB @ NYJ | 2026-09-20 17:00 | 2026-09-19 17:00 | 2.5000 | 45.0000 | 136.8467 | -136.8467 | 0.0299 | cutoff_in_future_features_from_current_cache |
-| MIN @ CHI | 2026-09-20 17:00 | 2026-09-19 17:00 | -6.0000 | 49.0000 | -220.3905 | 220.3905 | 0.0272 | cutoff_in_future_features_from_current_cache |
-| NO @ BAL | 2026-09-20 17:00 | 2026-09-19 17:00 | -5.0000 | 46.5000 | -187.9505 | 187.9505 | 0.0283 | cutoff_in_future_features_from_current_cache |
-| PHI @ TEN | 2026-09-20 17:00 | 2026-09-19 17:00 | 4.5000 | 42.0000 | 179.9211 | -179.9211 | 0.0287 | cutoff_in_future_features_from_current_cache |
-| PIT @ NE | 2026-09-20 17:00 | 2026-09-19 17:00 | -7.5000 | 45.0000 | -268.1526 | 268.1526 | 0.0256 | cutoff_in_future_features_from_current_cache |
-| JAX @ DEN | 2026-09-20 20:05 | 2026-09-19 20:05 | 4.0000 | 45.0000 | 169.7723 | -169.7723 | 0.0290 | cutoff_in_future_features_from_current_cache |
-| LV @ LAC | 2026-09-20 20:05 | 2026-09-19 20:05 | -5.5000 | 38.0000 | -203.9613 | 203.9613 | 0.0283 | cutoff_in_future_features_from_current_cache |
-| MIA @ SF | 2026-09-20 20:25 | 2026-09-19 20:25 | -9.5000 | 46.0000 | -350.1653 | 350.1653 | 0.0231 | cutoff_in_future_features_from_current_cache |
-| SEA @ ARI | 2026-09-20 20:25 | 2026-09-19 20:25 | 4.5000 | 45.0000 | 173.0515 | -173.0515 | 0.0289 | cutoff_in_future_features_from_current_cache |
-| WAS @ DAL | 2026-09-20 20:25 | 2026-09-19 20:25 | -4.0000 | 51.0000 | -162.5306 | 162.5306 | 0.0291 | cutoff_in_future_features_from_current_cache |
-| IND @ KC | 2026-09-21 00:20 | 2026-09-20 00:20 | -6.0000 | 44.0000 | -208.4444 | 208.4444 | 0.0277 | cutoff_in_future_features_from_current_cache |
-| NYG @ LA | 2026-09-22 00:15 | 2026-09-21 00:15 | -4.0000 | 50.5000 | -164.4984 | 164.4984 | 0.0291 | cutoff_in_future_features_from_current_cache |
+| NE @ SEA | 2026-09-10 00:20 | 2026-09-09 00:20 | 0.0000 | 48.0000 | 100.5648 | -100.5648 | 0.0304 | rest_missing |
+| SF @ LA | 2026-09-11 00:35 | 2026-09-10 00:35 | -2.5000 | 52.5000 | -137.4890 | 137.4890 | 0.0299 | rest_missing |
+| ATL @ PIT | 2026-09-13 17:00 | 2026-09-12 17:00 | -3.0000 | 45.0000 | -144.3153 | 144.3153 | 0.0298 | rest_missing |
+| BAL @ IND | 2026-09-13 17:00 | 2026-09-12 17:00 | -1.0000 | 47.5000 | -114.0462 | 114.0462 | 0.0304 | rest_missing |
+| BUF @ HOU | 2026-09-13 17:00 | 2026-09-12 17:00 | 0.0000 | 46.5000 | -102.2808 | 102.2808 | 0.0305 | rest_missing |
+| CHI @ CAR | 2026-09-13 17:00 | 2026-09-12 17:00 | 1.5000 | 45.5000 | 117.3895 | -117.3895 | 0.0303 | rest_missing |
+| CLE @ JAX | 2026-09-13 17:00 | 2026-09-12 17:00 | -10.5000 | 41.0000 | -390.0995 | 390.0995 | 0.0222 | rest_missing |
+| NO @ DET | 2026-09-13 17:00 | 2026-09-12 17:00 | -4.5000 | 46.0000 | -175.9084 | 175.9084 | 0.0288 | rest_missing |
+| NYJ @ TEN | 2026-09-13 17:00 | 2026-09-12 17:00 | -4.5000 | 43.0000 | -175.2736 | 175.2736 | 0.0289 | rest_missing |
+| TB @ CIN | 2026-09-13 17:00 | 2026-09-12 17:00 | -2.5000 | 48.0000 | -137.5084 | 137.5084 | 0.0299 | rest_missing |
+| ARI @ LAC | 2026-09-13 20:25 | 2026-09-12 20:25 | -5.5000 | 44.5000 | -205.8736 | 205.8736 | 0.0278 | rest_missing |
+| GB @ MIN | 2026-09-13 20:25 | 2026-09-12 20:25 | -0.5000 | 42.5000 | -104.9368 | 104.9368 | 0.0306 | rest_missing |
+| MIA @ LV | 2026-09-13 20:25 | 2026-09-12 20:25 | 2.5000 | 40.5000 | 138.0937 | -138.0937 | 0.0302 | rest_missing |
+| WAS @ PHI | 2026-09-13 20:25 | 2026-09-12 20:25 | -6.0000 | 44.5000 | -207.9499 | 207.9499 | 0.0277 | rest_missing |
+| DAL @ NYG | 2026-09-14 00:20 | 2026-09-13 00:20 | -2.5000 | 52.0000 | -134.4931 | 134.4931 | 0.0299 | rest_missing |
+| DEN @ KC | 2026-09-15 00:15 | 2026-09-14 00:15 | 1.0000 | 41.5000 | 110.8984 | -110.8984 | 0.0306 | rest_missing |
 
 ## Market comparison and paper backtest
 
@@ -41,7 +41,7 @@ unavailable: no eligible timestamped odds
 
 ```json
 {
- "run_id": "forecast-20260916T175305Z-6f5afe",
+ "run_id": "forecast-20260916T182937Z-1388f7",
  "config_hash": "6a0abc279a98c4481f6d0fbd5dbb2858a7b99998cfafc54cd7f01f4a97015593",
  "source_file_hashes": {
   "pbp/2010": "d2ef9c407319719910ad8de8c4c1b88f0ea945ffb3f78f48ef32fa3ed3a7573b",
@@ -64,7 +64,7 @@ unavailable: no eligible timestamped odds
   "schedules/all": "fa6684321ed9d08ee7496dfa9a4d345e9445cba7e8842c42f383ad524dc442d0"
  },
  "output_hashes": {
-  "predictions.parquet": "a78ea5de642a54296acef0e070688c613552d9057f061cc5a77faa6b86e8bbd6"
+  "predictions.parquet": "ce4ddd4bcdd0e0f5feef8f3b1e656c7e0244aacbd2f46bab386d5d4005d2cc0e"
  },
  "dependency_versions": {
   "duckdb": "1.5.5",
@@ -80,6 +80,10 @@ unavailable: no eligible timestamped odds
   "streamlit": "1.64.0",
   "typer": "0.27.2"
  },
- "notes": []
+ "notes": [
+  "horizon=standard_reconstruction",
+  "historical reconstruction of the standard kickoff-24h horizon; not a live forecast",
+  "training_data_mode=historical_reconstruction; forecast_input_mode=historical_reconstruction"
+ ]
 }
 ```

@@ -10,7 +10,7 @@ import pandas as pd
 from nfl_origination.config import MarketConfig
 from nfl_origination.evaluation.bootstrap import block_bootstrap_ratio
 from nfl_origination.market.asof import QuotePolicy, closing_proxy, select_quotes
-from nfl_origination.market.compare import load_distribution
+from nfl_origination.market.compare import decision_precedes_model, load_distribution
 from nfl_origination.pricing.markets import (
     MARKET_ORDER,
     MarketSpec,
@@ -32,8 +32,13 @@ def policy_id(cfg: MarketConfig) -> str:
 
 
 def _line_clv(spec: MarketSpec, bet_line: float, close_line: float) -> float:
+    """Selected-side line improvement; positive is favorable to the bettor.
+
+    Spread lines are stored relative to the selected side (home −3.5 / away +3.5), so both spread
+    selections use ``bet_handicap − close_handicap``. Totals keep separate over/under formulas.
+    """
     if spec.market == "spread":
-        return bet_line - close_line if spec.selection == "home" else close_line - bet_line
+        return bet_line - close_line
     return close_line - bet_line if spec.selection == "over" else bet_line - close_line
 
 
@@ -61,11 +66,21 @@ def paper_backtest(
     n_with_market = 0
     for pred in predictions.sort_values(["kickoff_utc", "game_id"]).itertuples(index=False):
         gid = str(pred.game_id)
-        eligible = select_quotes(odds, pd.Timestamp(pred.cutoff_utc), qpolicy, game_id=gid)
+        decision_time = pd.Timestamp(pred.cutoff_utc)
+        if decision_precedes_model(pred, decision_time):
+            exclusions.append(
+                {
+                    "game_id": gid,
+                    "quote_id": None,
+                    "reason": "decision_time_before_model_availability",
+                }
+            )
+            continue
+        eligible = select_quotes(odds, decision_time, qpolicy, game_id=gid)
         exclusions.extend({"game_id": gid, **e} for e in eligible.exclusions)
         if eligible.empty:
             continue
-        dist = load_distribution(distributions, gid)
+        dist = load_distribution(distributions, gid, str(pred.model_id))
         if dist is None:
             exclusions.append({"game_id": gid, "quote_id": None, "reason": "no_saved_distribution"})
             continue

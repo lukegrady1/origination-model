@@ -81,11 +81,25 @@ class TeamHistoryIndex:
         return part[mask]
 
     def prior_kickoff(self, team: str, cutoff: pd.Timestamp, season: int) -> pd.Timestamp | None:
-        """Most recent same-season game that has already kicked off before the cutoff."""
+        """Most recent same-season game that has already kicked off before the cutoff.
+
+        Rest is schedule knowledge; in ``recorded_asof`` the schedule row itself must have been
+        observed at or before the cutoff.
+        """
         part = self.by_team.get(team)
         if part is None or part.empty:
             return None
-        prior = part[(part["kickoff_utc"] < cutoff) & (part["season"] == season)]
+        known = (part["kickoff_utc"] < cutoff) & (part["season"] == season)
+        if self.policy.mode == "recorded_asof":
+            col = (
+                "schedule_first_observed_utc"
+                if "schedule_first_observed_utc" in part.columns
+                else "first_observed_utc"
+            )
+            if col not in part.columns:
+                return None
+            known &= (part[col] <= cutoff).fillna(False)
+        prior = part[known]
         if prior.empty:
             return None
         return pd.Timestamp(prior["kickoff_utc"].iloc[-1])
@@ -140,16 +154,64 @@ def _snapshot(
     )
 
 
+@dataclass
+class PriorSnapshot:
+    priors: dict[str, float]
+    seasons: list[int]
+    games_hash: str
+    max_source_eligible_utc: pd.Timestamp | None
+    max_observed_utc: pd.Timestamp | None
+    fully_eligible: bool
+
+
+def _nan_priors() -> dict[str, float]:
+    return {m: float("nan") for m in RATE_METRICS}
+
+
 def season_priors(
-    team_games: pd.DataFrame, target_season: int, prior_seasons: int
-) -> tuple[dict[str, float], list[int]]:
-    available = sorted(int(s) for s in team_games["season"].unique() if s < target_season)
+    team_games: pd.DataFrame,
+    target_season: int,
+    prior_seasons: int,
+    *,
+    policy: AsOfPolicy | None = None,
+    cutoff: pd.Timestamp | None = None,
+) -> PriorSnapshot:
+    """League priors from the preceding seasons, restricted to rows eligible at ``cutoff``.
+
+    Priors are feature inputs too: under ``recorded_asof`` only observed rows may enter them.
+    """
+    prior_rows = team_games[team_games["season"] < target_season]
+    if policy is not None and cutoff is not None and len(prior_rows):
+        first_observed = (
+            prior_rows["first_observed_utc"] if "first_observed_utc" in prior_rows.columns else None
+        )
+        mask = policy.eligible_mask(prior_rows["kickoff_utc"], cutoff, first_observed)
+        fully = bool(mask.all())
+        prior_rows = prior_rows[mask]
+    else:
+        fully = True
+    available = sorted(int(s) for s in prior_rows["season"].unique())
     use = [s for s in available if s >= target_season - prior_seasons]
     if not use:  # warm-up only: fall back to earlier available seasons
         use = available[-prior_seasons:] if available else []
     if not use:
-        return {m: float("nan") for m in RATE_METRICS}, []
-    return league_priors(team_games, use), use
+        return PriorSnapshot(_nan_priors(), [], "", None, None, fully)
+    used = prior_rows[prior_rows["season"].isin(use)]
+    ids = sorted(set(used["game_id"].astype(str)))
+    max_elig = None
+    max_obs = None
+    if policy is not None and len(used):
+        max_elig = pd.Timestamp(policy.eligible_from(used["kickoff_utc"]).max())
+        if "first_observed_utc" in used.columns and used["first_observed_utc"].notna().any():
+            max_obs = pd.Timestamp(used["first_observed_utc"].max())
+    return PriorSnapshot(
+        league_priors(used, use),
+        use,
+        hashlib.sha256(",".join(ids).encode()).hexdigest(),
+        max_elig,
+        max_obs,
+        fully,
+    )
 
 
 def build_features(
@@ -167,8 +229,9 @@ def build_features(
     assert_no_market_columns(list(games.columns), "build_features(games)")
     assert_no_market_columns(list(team_games.columns), "build_features(team_games)")
     index = TeamHistoryIndex(team_games, policy)
-    priors_cache: dict[int, tuple[dict[str, float], list[int]]] = {}
+    priors_cache: dict[tuple[int, pd.Timestamp | None], PriorSnapshot] = {}
     records: list[dict[str, object]] = []
+    has_game_observation = "first_observed_utc" in games.columns
     for game in games.sort_values(["kickoff_utc", "game_id"]).itertuples(index=False):
         kickoff = pd.Timestamp(game.kickoff_utc)
         season = int(game.season)
@@ -176,10 +239,25 @@ def build_features(
             cutoff_override_utc if cutoff_override_utc is not None else policy.cutoff_for(kickoff)
         )
         cutoff = pd.Timestamp(cutoff)
-        if season not in priors_cache:
-            priors_cache[season] = season_priors(team_games, season, cfg.prior_seasons)
-        priors, prior_seasons_used = priors_cache[season]
+        # priors depend on the cutoff whenever some prior-season rows are not yet eligible;
+        # once every prior row is eligible the snapshot is identical for the whole season
+        snap = priors_cache.get((season, None))
+        if snap is None:
+            snap = priors_cache.get((season, cutoff))
+        if snap is None:
+            snap = season_priors(
+                team_games, season, cfg.prior_seasons, policy=policy, cutoff=cutoff
+            )
+            priors_cache[(season, None if snap.fully_eligible else cutoff)] = snap
+        priors, prior_seasons_used = snap.priors, snap.seasons
         insufficient = len(prior_seasons_used) == 0
+        unobserved = False
+        if policy.mode == "recorded_asof":
+            if not has_game_observation:
+                unobserved = True
+            else:
+                observed_at = getattr(game, "first_observed_utc", pd.NaT)
+                unobserved = pd.isna(observed_at) or pd.Timestamp(observed_at) > cutoff
         home = _snapshot(index, str(game.home_team), season, cutoff, kickoff, cfg, priors)
         away = _snapshot(index, str(game.away_team), season, cutoff, kickoff, cfg, priors)
         neutral = bool(game.neutral_site)
@@ -207,7 +285,9 @@ def build_features(
                 "team_cold_start": float(tsnap.cold_start),
                 "opp_cold_start": float(osnap.cold_start),
                 "insufficient_warmup": insufficient,
+                "unobserved_inputs": unobserved,
                 "prior_seasons_used": ",".join(map(str, prior_seasons_used)),
+                "prior_games_hash": snap.games_hash,
                 "team_source_game_ids": ",".join(tsnap.source_game_ids),
                 "opp_source_game_ids": ",".join(osnap.source_game_ids),
                 "games_without_pbp": tsnap.games_without_pbp + osnap.games_without_pbp,
@@ -218,11 +298,21 @@ def build_features(
                 row[col] = osnap.metrics[metric]
             elig = [
                 t
-                for t in (tsnap.max_source_eligible_utc, osnap.max_source_eligible_utc)
+                for t in (
+                    tsnap.max_source_eligible_utc,
+                    osnap.max_source_eligible_utc,
+                    snap.max_source_eligible_utc,
+                )
                 if t is not None
             ]
             row["max_source_eligible_utc"] = max(elig) if elig else pd.NaT
-            obs = [t for t in (tsnap.max_observed_utc, osnap.max_observed_utc) if t is not None]
+            obs = [
+                t
+                for t in (tsnap.max_observed_utc, osnap.max_observed_utc, snap.max_observed_utc)
+                if t is not None
+            ]
+            if has_game_observation and pd.notna(getattr(game, "first_observed_utc", pd.NaT)):
+                obs.append(pd.Timestamp(game.first_observed_utc))
             row["max_observed_utc"] = max(obs) if obs else pd.NaT
             ids = sorted(set(tsnap.source_game_ids) | set(osnap.source_game_ids))
             row["source_games_hash"] = hashlib.sha256(",".join(ids).encode()).hexdigest()
@@ -235,6 +325,7 @@ def build_features(
     feats["max_source_eligible_utc"] = pd.to_datetime(feats["max_source_eligible_utc"], utc=True)
     feats["max_observed_utc"] = pd.to_datetime(feats["max_observed_utc"], utc=True)
     feats["insufficient_warmup"] = feats["insufficient_warmup"].astype(bool)
+    feats["unobserved_inputs"] = feats["unobserved_inputs"].astype(bool)
     validate_frame(feats, FEATURES_SCHEMA)
     return feats
 
@@ -248,10 +339,20 @@ def _empty_features() -> pd.DataFrame:
 
 
 def build_labels(games: pd.DataFrame, results: pd.DataFrame, policy: AsOfPolicy) -> pd.DataFrame:
-    """Labels are separate from features and carry their own availability time."""
-    merged = games.merge(
-        results[["game_id", "home_score", "away_score"]], on="game_id", how="inner"
-    )
+    """Labels are separate from features and carry their own availability time.
+
+    Historical reconstruction uses ``kickoff + lag``; ``recorded_asof`` additionally requires the
+    result's source version to have been observed, so availability is the later of the two.
+    """
+    cols = ["game_id", "home_score", "away_score"]
+    merged = games.merge(results[cols], on="game_id", how="inner")
+    available = policy.eligible_from(merged["kickoff_utc"])
+    if policy.mode == "recorded_asof":
+        if "first_observed_utc" not in merged.columns:
+            raise MissingDataError("recorded_asof labels need the source observation time")
+        observed = pd.to_datetime(merged["first_observed_utc"], utc=True)
+        available = pd.concat([available, observed], axis=1).max(axis=1)
+        available = available.where(observed.notna(), pd.NaT)
     rows = []
     for perspective, col in (("home", "home_score"), ("away", "away_score")):
         rows.append(
@@ -260,12 +361,14 @@ def build_labels(games: pd.DataFrame, results: pd.DataFrame, policy: AsOfPolicy)
                     "game_id": merged["game_id"].astype(str),
                     "perspective": perspective,
                     "points": merged[col].astype(np.int64),
-                    "label_available_utc": policy.eligible_from(merged["kickoff_utc"]),
+                    "label_available_utc": pd.to_datetime(available, utc=True),
                 }
             )
         )
     labels = pd.concat(rows, ignore_index=True)
     labels["perspective"] = labels["perspective"].astype(str)
+    if policy.mode == "recorded_asof":
+        labels = labels[labels["label_available_utc"].notna()].reset_index(drop=True)
     validate_frame(labels, LABELS_SCHEMA)
     return labels
 
@@ -274,11 +377,26 @@ def features_hash(features: pd.DataFrame) -> str:
     return hash_frame(features)
 
 
+def usable_rows(features: pd.DataFrame) -> pd.Series:
+    """Rows whose every input satisfied the availability policy at the cutoff."""
+    ok = ~features["insufficient_warmup"].astype(bool)
+    if "unobserved_inputs" in features.columns:
+        ok &= ~features["unobserved_inputs"].astype(bool)
+    return ok
+
+
 def require_forecastable(features: pd.DataFrame) -> None:
-    bad = features[features["insufficient_warmup"]]
-    if len(bad):
+    bad_prior = features[features["insufficient_warmup"]]
+    if len(bad_prior):
         raise MissingDataError(
-            f"{bad['game_id'].nunique()} games lack league prior warm-up; cannot forecast"
+            f"{bad_prior['game_id'].nunique()} games lack an eligible league prior warm-up; "
+            "cannot forecast"
+        )
+    if "unobserved_inputs" in features.columns and features["unobserved_inputs"].any():
+        n = features[features["unobserved_inputs"]]["game_id"].nunique()
+        raise MissingDataError(
+            f"{n} games have schedule rows not observed at the cutoff (recorded_asof); "
+            "cannot forecast"
         )
 
 

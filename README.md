@@ -39,8 +39,9 @@ protocol. It is a portfolio research project, not a trading system.
 | Margin CRPS | 7.99 | 7.29 | −0.70 [−1.00, −0.39] |
 | 80% margin interval coverage | 0.776 | 0.801 | |
 
-Full tables, slices, reliability and key-number diagnostics: `reports/final/holdout/report.md`
-and `docs/model_card.md`. The rounded-normal score model under-weights 3- and 7-point margins
+Intervals exclude zero for score MAE, margin MAE, log loss, Brier and margin CRPS; total MAE
+improves in point estimate only (interval includes zero). Full tables, slices, reliability and
+key-number diagnostics: `reports/final/holdout/report.md` and `docs/model_card.md`. The rounded-normal score model under-weights 3- and 7-point margins
 and over-predicts ties; no injuries, starters or weather are used; no ROI is claimed.
 
 ## Quickstart
@@ -64,7 +65,9 @@ uv run nfl-origination backtest --config configs/holdout.yaml
 uv run nfl-origination report --run latest-holdout --config configs/holdout.yaml
 uv run nfl-origination fit --through-season 2025 --config configs/v1.yaml
 uv run nfl-origination ingest --seasons 2026
-uv run nfl-origination predict --season 2026 --week 3 --as-of 2026-09-16T12:00:00Z
+uv run nfl-origination predict --season 2026 --week 3                     # live: information time = now
+uv run nfl-origination predict --season 2026 --week 3 --as-of 2026-09-16T12:00:00Z   # explicit past time
+uv run nfl-origination predict --season 2026 --week 1 --reconstruct-standard-horizon # kickoff-24h, after the fact
 uv run nfl-origination import-odds --path data/user/odds.csv        # optional
 uv run nfl-origination compare --run latest-forecast                 # optional
 uv run nfl-origination paper-backtest --run latest-holdout           # optional

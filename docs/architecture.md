@@ -82,3 +82,15 @@ output hashes and notes. Rerunning the same config on the same cache reproduces 
   maximally unbalanced in the fair-line search; a point-mass 24–21 therefore prices −3.5/44.5.
 - Games without play-by-play would keep points and schedule information with null efficiency
   columns; none occurred in 2010–2025.
+- League priors are as-of inputs: they use only prior-season rows eligible at the cutoff and are
+  cached per season only when every prior row is eligible (always true in historical
+  reconstruction inside a season). Their game IDs and observation times are in provenance.
+- A team-game row counts as observed only when both its schedule row and its play-by-play were
+  observed; rest uses observed schedule rows; labels become available at the later of
+  `kickoff + 48h` and their observation in `recorded_asof`.
+- Forecast horizons are explicit: live (generation time, `custom_horizon`), `--as-of` (past
+  research time), or `--reconstruct-standard-horizon` (kickoff − 24h, only after it has passed).
+- Bundles store a feature/policy contract; forecasting refuses a bundle whose contract differs
+  from the current configuration or whose training data mode differs from the feature rows.
+- The frozen protocol digests the research-relevant source tree (excluding dashboard, CLI and
+  report rendering) and `uv.lock`; protocols frozen before this exist are refused for reruns.

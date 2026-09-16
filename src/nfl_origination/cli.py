@@ -200,7 +200,10 @@ def freeze_protocol_cmd(
     )
     _echo_json(
         {
+            "label": frozen.label,
             "checksum": frozen.checksum,
+            "code_digest": frozen.code_digest,
+            "lock_digest": frozen.lock_digest,
             "frozen_at_utc": frozen.frozen_at_utc,
             "selected_alpha": frozen.selected_alpha,
             "holdout_season": frozen.holdout_season,
@@ -245,8 +248,15 @@ def predict(
     season: Annotated[int, typer.Option(help="NFL season to forecast")],
     week: Annotated[int | None, typer.Option(help="Week; omit for all remaining games")] = None,
     as_of: Annotated[
-        str | None, typer.Option("--as-of", help="Explicit research time, ISO-8601 UTC")
+        str | None, typer.Option("--as-of", help="Explicit past research time, ISO-8601 UTC")
     ] = None,
+    reconstruct_standard_horizon: Annotated[
+        bool,
+        typer.Option(
+            "--reconstruct-standard-horizon",
+            help="Historically reconstruct each game's kickoff-24h cutoff (must have passed)",
+        ),
+    ] = False,
     config: ConfigOpt = Path("configs/v1.yaml"),
     offline: OfflineOpt = True,
     set_: SetOpt = None,
@@ -261,7 +271,15 @@ def predict(
         if as_of_ts.tzinfo is None:
             raise typer.BadParameter("--as-of must include a UTC offset, e.g. 2026-09-16T12:00:00Z")
         as_of_ts = as_of_ts.tz_convert("UTC")
-    manifest, slate = _run(predict_slate, cfg, season, week, as_of=as_of_ts, offline=offline)
+    manifest, slate = _run(
+        predict_slate,
+        cfg,
+        season,
+        week,
+        as_of=as_of_ts,
+        offline=offline,
+        reconstruct_standard_horizon=reconstruct_standard_horizon,
+    )
     run_dir = cfg.run.artifacts_dir / "runs" / manifest.run_id
     if slate.empty:
         typer.echo("empty slate: no games matched the request (valid empty artifact written)")
@@ -350,9 +368,9 @@ def compare(
         return
     preds = pd.read_parquet(run_dir / "predictions.parquet")
     preds = preds[preds["model_id"] == manifest.model_id] if "model_id" in preds else preds
-    dist_path = run_dir / "distributions.parquet"
+    dist_path = run_dir / f"distributions_{manifest.model_id}.parquet"
     if not dist_path.exists():
-        dist_path = run_dir / f"distributions_{manifest.model_id}.parquet"
+        dist_path = run_dir / "distributions.parquet"  # lookup is still keyed by model_id
     dists = pd.read_parquet(dist_path) if dist_path.exists() else None
     policy = QuotePolicy(
         cfg.market.bookmaker,

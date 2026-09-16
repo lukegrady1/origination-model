@@ -168,7 +168,8 @@ def test_bundle_round_trip_and_predict_game(synthetic_small, policy, features_cf
         params,
         ["g"],
         forecast_season=2017,
-        data_mode="historical_reconstruction",
+        policy=policy,
+        features_cfg=features_cfg,
         config_hash="c",
     )
     path = bundle.save(tmp_path / "bundle.json")

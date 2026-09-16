@@ -199,11 +199,13 @@ FEATURES_SCHEMA = ArtifactSchema(
         "feature_version": "str",
         **{c: "float" for c in FEATURE_COLUMNS_FULL},
         "insufficient_warmup": "bool",
+        "unobserved_inputs": "bool",
     },
     optional={
         "max_observed_utc": "datetime",
         "team_source_game_ids": "str",
         "opp_source_game_ids": "str",
+        "prior_games_hash": "str",
     },
 )
 

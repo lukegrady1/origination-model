@@ -13,8 +13,9 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
 
-from nfl_origination.config import DistributionConfig
+from nfl_origination.config import DistributionConfig, FeaturesConfig
 from nfl_origination.errors import MissingDataError, ModelValidationError
+from nfl_origination.features.asof import AsOfPolicy
 from nfl_origination.models.baseline import LeagueBaselineModel
 from nfl_origination.models.distribution import (
     ResidualParams,
@@ -24,6 +25,7 @@ from nfl_origination.models.distribution import (
 from nfl_origination.models.ridge import FitSpec, RidgeScoreModel
 from nfl_origination.provenance import (
     dependency_versions,
+    hash_json,
     iso_utc,
     read_json,
     utc_now,
@@ -55,6 +57,8 @@ class ModelBundle(BaseModel):
     schema_version: int = SCHEMA_VERSION
     feature_version: str = FEATURE_VERSION
     config_hash: str | None = None
+    feature_contract: dict[str, Any] | None = None
+    contract_hash: str | None = None
     dependency_versions: dict[str, str] = Field(default_factory=dependency_versions)
     created_at_utc: str = Field(default_factory=lambda: iso_utc(utc_now()) or "")
     notes: list[str] = Field(default_factory=list)
@@ -87,6 +91,46 @@ class ModelBundle(BaseModel):
         if self.residual is None:
             raise ModelValidationError(f"bundle {self.model_id} has no residual distribution")
         return ResidualParams.from_dict(self.residual)
+
+
+def feature_contract(
+    policy: AsOfPolicy, features_cfg: FeaturesConfig, feature_set: str
+) -> dict[str, Any]:
+    """The semantic definition of the model's inputs: policy, feature settings, versions."""
+    return {
+        "data_mode": policy.mode,
+        "completed_game_lag_hours": policy.completed_game_lag_hours,
+        "cutoff_hours_before_kickoff": policy.cutoff_hours_before_kickoff,
+        "features": features_cfg.model_dump(),
+        "feature_set": feature_set,
+        "feature_version": FEATURE_VERSION,
+        "schema_version": SCHEMA_VERSION,
+    }
+
+
+def contract_hash(contract: dict[str, Any]) -> str:
+    return hash_json(contract)
+
+
+def check_bundle_compatible(
+    bundle: ModelBundle, policy: AsOfPolicy, features_cfg: FeaturesConfig
+) -> None:
+    """Refuse to feed differently defined inputs into trained coefficients."""
+    if bundle.feature_contract is None or bundle.contract_hash is None:
+        raise ModelValidationError(
+            f"bundle {bundle.model_id} has no feature contract; refit it before forecasting"
+        )
+    current = feature_contract(policy, features_cfg, bundle.feature_set)
+    if contract_hash(current) != bundle.contract_hash:
+        diffs = {
+            k: {"bundle": bundle.feature_contract.get(k), "current": v}
+            for k, v in current.items()
+            if bundle.feature_contract.get(k) != v
+        }
+        raise ModelValidationError(
+            f"bundle {bundle.model_id} is incompatible with the current feature/policy "
+            f"configuration: {diffs}"
+        )
 
 
 def make_model(spec: FitSpec) -> ScoreModel:
@@ -151,11 +195,13 @@ def build_bundle(
     residual_game_ids: list[str],
     *,
     forecast_season: int | None,
-    data_mode: str,
+    policy: AsOfPolicy,
+    features_cfg: FeaturesConfig,
     config_hash: str | None,
     notes: list[str] | None = None,
 ) -> ModelBundle:
     cutoff = train["label_available_utc"].max() if "label_available_utc" in train else None
+    contract = feature_contract(policy, features_cfg, spec.feature_set)
     return ModelBundle(
         model_id=spec.model_id,
         family=spec.family,
@@ -173,18 +219,40 @@ def build_bundle(
         if cutoff is not None
         else None,
         forecast_season=forecast_season,
-        data_mode=data_mode,
+        data_mode=policy.mode,
         config_hash=config_hash,
+        feature_contract=contract,
+        contract_hash=contract_hash(contract),
         notes=notes or [],
     )
 
 
 def predict_game(
-    bundle: ModelBundle, game_features: pd.DataFrame, cfg: DistributionConfig
+    bundle: ModelBundle,
+    game_features: pd.DataFrame,
+    cfg: DistributionConfig,
+    *,
+    policy: AsOfPolicy | None = None,
+    features_cfg: FeaturesConfig | None = None,
 ) -> ScoreDistribution:
-    """Score distribution for one game from its two perspective feature rows."""
+    """Score distribution for one game from its two perspective feature rows.
+
+    When the policy and feature configuration are supplied the bundle's contract is verified;
+    feature rows built under a different data mode than the bundle's training are rejected.
+    """
     if bundle.feature_version != FEATURE_VERSION:
         raise ModelValidationError("feature version mismatch between bundle and features")
+    if policy is not None and features_cfg is not None:
+        check_bundle_compatible(bundle, policy, features_cfg)
+    if "data_mode" in game_features.columns:
+        modes = set(game_features["data_mode"].astype(str))
+        if modes != {bundle.data_mode}:
+            raise ModelValidationError(
+                f"feature rows were built under {sorted(modes)} but the bundle was trained "
+                f"under {bundle.data_mode!r}; provenance would be mislabeled"
+            )
+    if "unobserved_inputs" in game_features.columns and game_features["unobserved_inputs"].any():
+        raise MissingDataError("game has inputs not observed at the cutoff; cannot forecast")
     if (
         "feature_version" in game_features.columns
         and (game_features["feature_version"] != bundle.feature_version).any()

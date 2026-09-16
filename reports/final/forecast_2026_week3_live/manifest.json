@@ -96,7 +96,7 @@
     "seed": 42
   },
   "config_hash": "6a0abc279a98c4481f6d0fbd5dbb2858a7b99998cfafc54cd7f01f4a97015593",
-  "created_at_utc": "2026-09-16T17:53:05.934629Z",
+  "created_at_utc": "2026-09-16T18:29:33.875067Z",
   "data_mode": "historical_reconstruction",
   "dependency_versions": {
     "duckdb": "1.5.5",
@@ -114,20 +114,24 @@
   },
   "evaluation_mode": "forecast",
   "feature_version": "1",
-  "forecast_policy": "kickoff_minus_24h",
-  "git_commit": "518434a9d3a2e56d284c8a8bc701b181e3da819d",
+  "forecast_policy": "custom_horizon",
+  "git_commit": "32b16ea1d71943400c1409cb2bcc581b53f1caf0",
   "git_dirty": true,
-  "label": "2026_week2",
+  "label": "2026_week3",
   "model_id": "M1_ridge_alpha100",
-  "notes": [],
+  "notes": [
+    "horizon=live",
+    "training_data_mode=historical_reconstruction; forecast_input_mode=historical_reconstruction",
+    "information_time_utc=2026-09-16T18:29:33.058509Z"
+  ],
   "output_hashes": {
-    "predictions.parquet": "a78ea5de642a54296acef0e070688c613552d9057f061cc5a77faa6b86e8bbd6"
+    "predictions.parquet": "3ca472c304a1aedf60d0cbe297608b39c0e9a753dfb98b3d88d25ba0617734c6"
   },
   "platform": "macOS-26.6.2-arm64-arm-64bit python=3.12.14",
   "protocol_checksum": null,
-  "run_id": "forecast-20260916T175305Z-6f5afe",
+  "run_id": "forecast-20260916T182933Z-e586ff",
   "run_kind": "forecast",
-  "runtime_seconds": 0.81,
+  "runtime_seconds": 0.84,
   "schema_version": 1,
   "seed": 42,
   "source_file_hashes": {

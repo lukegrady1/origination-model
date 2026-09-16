@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from nfl_origination.errors import ModelValidationError
 from nfl_origination.market.asof import QuotePolicy, select_quotes
 from nfl_origination.models.distribution import MarginalScoreDistribution
 from nfl_origination.pricing.markets import MarketSpec, settlement_probabilities
@@ -15,14 +16,36 @@ from nfl_origination.pricing.odds import no_vig_pair
 UNAVAILABLE = "unavailable: no eligible timestamped odds"
 
 
-def load_distribution(dists: pd.DataFrame, game_id: str) -> MarginalScoreDistribution | None:
-    row = dists[dists["game_id"] == game_id]
-    if row.empty:
+def load_distribution(
+    dists: pd.DataFrame, game_id: str, model_id: str
+) -> MarginalScoreDistribution | None:
+    """Exactly one saved distribution for (game, model); ambiguity or a bad PMF is an error.
+
+    Row order is never a correctness guarantee: forecast runs save every model's distribution.
+    """
+    if "model_id" not in dists.columns:
+        raise ModelValidationError("saved distributions lack model_id; cannot match the prediction")
+    rows = dists[(dists["game_id"] == game_id) & (dists["model_id"] == model_id)]
+    if rows.empty:
         return None
-    r = row.iloc[0]
-    return MarginalScoreDistribution(
-        np.asarray(r["margin_pmf"]), np.asarray(r["total_pmf"]), int(r["max_score"])
+    if len(rows) > 1:
+        raise ModelValidationError(
+            f"{len(rows)} saved distributions for game {game_id} and model {model_id}; ambiguous"
+        )
+    r = rows.iloc[0]
+    dist = MarginalScoreDistribution(
+        np.asarray(r["margin_pmf"], dtype=float),
+        np.asarray(r["total_pmf"], dtype=float),
+        int(r["max_score"]),
     )
+    dist.validate_marginals()
+    return dist
+
+
+def decision_precedes_model(pred: Any, decision_time: pd.Timestamp) -> bool:
+    """True when the prediction records a model creation time later than the decision time."""
+    created = getattr(pred, "model_created_utc", None)
+    return created is not None and pd.notna(created) and pd.Timestamp(created) > decision_time
 
 
 def compare_predictions(
@@ -34,8 +57,21 @@ def compare_predictions(
     """Pair each saved prediction with contemporaneous quotes selected at its cutoff."""
     rows: list[dict[str, Any]] = []
     n_with_market = 0
+    n_before_model = 0
     for pred in predictions.itertuples(index=False):
         decision_time = pd.Timestamp(pred.cutoff_utc)
+        if decision_precedes_model(pred, decision_time):
+            n_before_model += 1
+            rows.append(
+                {
+                    "game_id": pred.game_id,
+                    "cutoff_utc": decision_time,
+                    "model_id": pred.model_id,
+                    "market_available": False,
+                    "exclusion": "decision_time_before_model_availability",
+                }
+            )
+            continue
         eligible = select_quotes(odds, decision_time, policy, game_id=str(pred.game_id))
         rec: dict[str, Any] = {
             "game_id": pred.game_id,
@@ -55,7 +91,7 @@ def compare_predictions(
         q = eligible.quotes
         rec["market_snapshot_utc"] = q["snapshot_at_utc"].max()
         dist = (
-            load_distribution(distributions, str(pred.game_id))
+            load_distribution(distributions, str(pred.game_id), str(pred.model_id))
             if distributions is not None
             else None
         )
@@ -104,6 +140,7 @@ def compare_predictions(
     summary: dict[str, Any] = {
         "n_predictions": len(predictions),
         "n_with_market": n_with_market,
+        "n_decisions_before_model_availability": n_before_model,
         "bookmaker": policy.bookmaker,
         "status": "ok" if n_with_market else UNAVAILABLE,
         "note": "price-reference errors compare model conditional means with bookmaker lines, "

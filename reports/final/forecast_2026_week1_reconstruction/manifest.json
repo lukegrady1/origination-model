@@ -1,0 +1,159 @@
+{
+  "config": {
+    "data": {
+      "cache_dir": "data/raw",
+      "completed_game_lag_hours": 48.0,
+      "features_dir": "data/features",
+      "game_type": "REG",
+      "mode": "historical_reconstruction",
+      "normalized_dir": "data/normalized",
+      "seasons": [
+        2010,
+        2025
+      ],
+      "source": "nflverse",
+      "synthetic_fixture": null
+    },
+    "distribution": {
+      "hard_max_score": 250,
+      "initial_max_score": 100,
+      "max_omitted_mass": 1e-08,
+      "negative_cell_tolerance": 1e-10,
+      "negative_latent_warn": 0.01,
+      "pmf_sum_tolerance": 1e-08,
+      "quadrature_nodes_per_cell": 12,
+      "score_step": 25
+    },
+    "evaluation": {
+      "ablation": true,
+      "bootstrap_replicates": 1000,
+      "confirmation_season": 2024,
+      "development_seasons": [
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023
+      ],
+      "holdout_season": 2025,
+      "sparse_bin_threshold": 30
+    },
+    "features": {
+      "half_life_games": 8.0,
+      "history_games": 16,
+      "max_unexpected_null_rate": 0.05,
+      "offseason_weight": 0.5,
+      "prior_seasons": 2,
+      "rest_default_days": 7.0,
+      "rest_max_days": 14.0,
+      "rest_min_days": 3.0,
+      "shrinkage_games": 4.0,
+      "shrinkage_plays": 200.0,
+      "shrinkage_split_plays": 100.0
+    },
+    "forecast": {
+      "cutoff_hours_before_kickoff": 24.0
+    },
+    "market": {
+      "bookmaker": null,
+      "closing_proxy_window_minutes": 30.0,
+      "enabled": false,
+      "max_quote_age_minutes": 60.0,
+      "max_selections_per_game": 1,
+      "min_ev": 0.03,
+      "moneyline_settlement_rule": "two_way_tie_void",
+      "odds_path": null,
+      "stake_units": 1.0,
+      "synthetic": false
+    },
+    "model": {
+      "ablation_selected_alpha": 100.0,
+      "alpha_candidates": [
+        1.0,
+        10.0,
+        100.0,
+        1000.0
+      ],
+      "alpha_tie_tolerance": 0.01,
+      "covariance_diagonal_shrinkage": 0.1,
+      "covariance_floor": 1e-06,
+      "family": "ridge_score",
+      "feature_set": "full",
+      "min_residual_games": 500,
+      "residual_first_season": 2016,
+      "residual_window_seasons": 5,
+      "selected_alpha": 100.0,
+      "train_start_season": 2012
+    },
+    "run": {
+      "artifacts_dir": "artifacts",
+      "kind": "forecast",
+      "label": "v1",
+      "reports_dir": "reports"
+    },
+    "schema_version": 1,
+    "seed": 42
+  },
+  "config_hash": "6a0abc279a98c4481f6d0fbd5dbb2858a7b99998cfafc54cd7f01f4a97015593",
+  "created_at_utc": "2026-09-16T18:29:37.408518Z",
+  "data_mode": "historical_reconstruction",
+  "dependency_versions": {
+    "duckdb": "1.5.5",
+    "matplotlib": "3.11.2",
+    "nfl_origination": "0.1.0",
+    "numpy": "2.5.3",
+    "pandas": "3.0.5",
+    "pyarrow": "25.0.1",
+    "pydantic": "2.13.5",
+    "python": "3.12.14",
+    "scikit-learn": "1.9.1",
+    "scipy": "1.18.1",
+    "streamlit": "1.64.0",
+    "typer": "0.27.2"
+  },
+  "evaluation_mode": "forecast",
+  "feature_version": "1",
+  "forecast_policy": "kickoff_minus_24h",
+  "git_commit": "32b16ea1d71943400c1409cb2bcc581b53f1caf0",
+  "git_dirty": true,
+  "label": "2026_week1",
+  "model_id": "M1_ridge_alpha100",
+  "notes": [
+    "horizon=standard_reconstruction",
+    "historical reconstruction of the standard kickoff-24h horizon; not a live forecast",
+    "training_data_mode=historical_reconstruction; forecast_input_mode=historical_reconstruction"
+  ],
+  "output_hashes": {
+    "predictions.parquet": "ce4ddd4bcdd0e0f5feef8f3b1e656c7e0244aacbd2f46bab386d5d4005d2cc0e"
+  },
+  "platform": "macOS-26.6.2-arm64-arm-64bit python=3.12.14",
+  "protocol_checksum": null,
+  "run_id": "forecast-20260916T182937Z-1388f7",
+  "run_kind": "forecast",
+  "runtime_seconds": 0.84,
+  "schema_version": 1,
+  "seed": 42,
+  "source_file_hashes": {
+    "pbp/2010": "d2ef9c407319719910ad8de8c4c1b88f0ea945ffb3f78f48ef32fa3ed3a7573b",
+    "pbp/2011": "c54753b8137b88dab260489b1462cbf1309c3d11741eb8d10e5f1b0a9b8795b1",
+    "pbp/2012": "447b90789104aac70427ec9d3b51df7247234029d0ecabd269279369b1cc6278",
+    "pbp/2013": "f454605a1983b3946baf0ffadf3a0b9f5e04735c4b84732e0483f2049a780d00",
+    "pbp/2014": "54c01408d8f0ff9e013a4ea51428b91d610101f72545d082e932f5710e2fb4f7",
+    "pbp/2015": "01b5ae7d06633a2e66b418404461a3d4ff055ad2f3a87d453cebcc8d3fda7ed9",
+    "pbp/2016": "95eba04e2145e3c1c8ca502f2a3a76cfb0a5990680c3fb480f02a74a45f54a3b",
+    "pbp/2017": "84eacd963c1fdd45965f6222c62e9329a7f3412f029d92c1ac5e34a1bb4d3710",
+    "pbp/2018": "2e6f2dce7c7ebd46e985cabe0c17eb72b39a77f98cb4478409294f50b5820150",
+    "pbp/2019": "60c3067017db2d28a78f66a79b657268be8578d9a5288e6a827efdcd7fe42540",
+    "pbp/2020": "8889f5d8782b5c5dce3c3644acdc0322b228a7e9cb13fa36cbac250e260e9f60",
+    "pbp/2021": "333ad34378e5339d5172717cc83378e908daf02c8699416ab3e17c2ec10f78d8",
+    "pbp/2022": "931121d8897779d7944e2a293e92ed8799c8e5cceef84096ac42339003fedc09",
+    "pbp/2023": "bd3484731408def6b0ec93225bba2bd7b2c65769ca707a2b9444d891abdc6776",
+    "pbp/2024": "3fd2896bc0b911b615142d2f1fabae54a4bbba5ab7b73b28187b118ef8af6a3b",
+    "pbp/2025": "c6ecedd6d678cc37ed316b23ef84ee1ec6abb69c514bb11868a7ebd5a367df29",
+    "pbp/2026": "e7567f9931b02ddafca608ff91ca8f6443a864a1a0d18aef4abe3f4fc49562bc",
+    "schedules/all": "fa6684321ed9d08ee7496dfa9a4d345e9445cba7e8842c42f383ad524dc442d0"
+  },
+  "status": "completed",
+  "training_cutoff_utc": "2026-01-07T01:20:00Z"
+}

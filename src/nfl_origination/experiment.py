@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import shutil
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -40,12 +41,14 @@ from nfl_origination.features.builder import (
     build_labels,
     features_hash,
     require_forecastable,
+    usable_rows,
 )
 from nfl_origination.models.bundle import (
     ModelBundle,
     ScoreModel,
     align_labels,
     build_bundle,
+    check_bundle_compatible,
     fit_score_model,
     game_ids_hash,
     game_locations,
@@ -212,23 +215,52 @@ class SeasonFit:
     model: ScoreModel
     train: pd.DataFrame
     locations: pd.DataFrame  # game_id, mu_home_score, mu_away_score, actual_home, actual_away
+    fit_time_utc: pd.Timestamp
+    n_dropped_unavailable_labels: int = 0
 
 
 def _labeled_rows(dataset: Dataset) -> pd.DataFrame:
     labeled = align_labels(dataset.features, dataset.labels)
-    return labeled[~labeled["insufficient_warmup"]].reset_index(drop=True)
+    return labeled[usable_rows(labeled)].reset_index(drop=True)
 
 
 def _actuals(dataset: Dataset) -> pd.DataFrame:
-    return dataset.results[["game_id", "home_score", "away_score"]].rename(
+    actual = dataset.results[["game_id", "home_score", "away_score"]].rename(
         columns={"home_score": "actual_home", "away_score": "actual_away"}
     )
+    avail = dataset.labels[dataset.labels["perspective"] == "home"][
+        ["game_id", "label_available_utc"]
+    ]
+    return actual.merge(avail, on="game_id", how="left")
+
+
+def _available_training_rows(
+    train: pd.DataFrame, fit_time: pd.Timestamp
+) -> tuple[pd.DataFrame, int]:
+    """Keep rows whose labels were available at the fit time; report how many were dropped."""
+    ok = train["label_available_utc"] <= fit_time
+    dropped = int((~ok).sum())
+    kept = train[ok]
+    # never split a game's two perspective rows
+    counts = kept.groupby("game_id")["perspective"].nunique()
+    whole = counts[counts == 2].index
+    kept = kept[kept["game_id"].isin(whole)]
+    return kept, dropped + int(len(train) - len(kept) - dropped)
 
 
 def chronological_fits(
-    dataset: Dataset, spec: FitSpec, seasons: list[int], train_start: int
+    dataset: Dataset,
+    spec: FitSpec,
+    seasons: list[int],
+    train_start: int,
+    *,
+    fit_time_override: pd.Timestamp | None = None,
 ) -> dict[int, SeasonFit]:
-    """Fit once per season on all prior seasons from ``train_start``; predict that season."""
+    """Fit once per season on all prior seasons from ``train_start``; predict that season.
+
+    The fit time is the season's first cutoff (or an explicit override); only labels available
+    by then may enter fitting, in every data mode.
+    """
     labeled = _labeled_rows(dataset)
     actuals = _actuals(dataset)
     out: dict[int, SeasonFit] = {}
@@ -237,22 +269,40 @@ def chronological_fits(
         evaluate = labeled[labeled["season"] == season]
         if evaluate.empty:
             continue
+        fit_time = (
+            fit_time_override
+            if fit_time_override is not None
+            else pd.Timestamp(evaluate["cutoff_utc"].min())
+        )
+        train, dropped = _available_training_rows(train, fit_time)
+        if train.empty:
+            raise MissingDataError(
+                f"season {season}: no training labels available at fit time {fit_time} "
+                f"({dropped} rows dropped as unavailable under {dataset.policy.mode})"
+            )
         assert_grouped_split(train, evaluate)
-        fit_time = pd.Timestamp(evaluate["cutoff_utc"].min())
         assert_labels_available(train, fit_time)
         model, used = fit_score_model(train, dataset.labels, spec)
         mu = predict_location(model, evaluate)
         loc = game_locations(evaluate, mu).merge(actuals, on="game_id", how="left")
-        out[season] = SeasonFit(season, model, used, loc)
+        out[season] = SeasonFit(season, model, used, loc, fit_time, dropped)
     return out
 
 
-def residual_pool(fits: dict[int, SeasonFit], seasons: list[int]) -> tuple[np.ndarray, list[str]]:
+def residual_pool(
+    fits: dict[int, SeasonFit],
+    seasons: list[int],
+    *,
+    available_by: pd.Timestamp | None = None,
+) -> tuple[np.ndarray, list[str]]:
+    """Residual pairs from prior out-of-fold seasons with labels available by ``available_by``."""
     frames = [fits[s].locations for s in seasons if s in fits]
     if not frames:
         return np.zeros((0, 2)), []
     pool = pd.concat(frames, ignore_index=True)
     pool = pool[pool["actual_home"].notna() & pool["actual_away"].notna()]
+    if available_by is not None and "label_available_utc" in pool.columns:
+        pool = pool[pool["label_available_utc"] <= available_by]
     res = np.column_stack(
         [
             pool["actual_home"].to_numpy(float) - pool["mu_home_score"].to_numpy(float),
@@ -268,7 +318,7 @@ def fit_residuals_for_season(
     seasons = residual_seasons(
         season, config.model.residual_first_season, config.model.residual_window_seasons
     )
-    residuals, ids = residual_pool(fits, seasons)
+    residuals, ids = residual_pool(fits, seasons, available_by=fits[season].fit_time_utc)
     params = fit_residual_params(
         residuals,
         seasons=[s for s in seasons if s in fits],
@@ -486,8 +536,10 @@ def _score_season(
         residual,
         ids,
         forecast_season=season,
-        data_mode=config.data.mode,
+        policy=dataset.policy,
+        features_cfg=config.features,
         config_hash=config.config_hash(),
+        notes=[f"fit_time_utc={iso_utc(fit.fit_time_utc.to_pydatetime())}"],
     )
     bundle.save(run_dir / "bundles" / f"{spec.model_id}_{season}.json")
     games = dataset.games.set_index("game_id")
@@ -741,7 +793,7 @@ def _run_backtest_into(
     holdout_count = None
     if kind == "holdout":
         holdout_count = record_holdout_run(
-            config.run.artifacts_dir, run_id, rerun_reason=rerun_reason
+            config.run.artifacts_dir, run_id, rerun_reason=rerun_reason, label=config.run.label
         )
         if holdout_count > 1:
             notes.append(f"HOLDOUT RERUN #{holdout_count}: {rerun_reason}")
@@ -789,7 +841,10 @@ def forecast_bundle_dir(config: ExperimentConfig, forecast_season: int) -> Path:
 def fit_forecast_bundles(
     config: ExperimentConfig, through_season: int, *, offline: bool
 ) -> tuple[RunManifest, dict[str, Path]]:
-    """Fit B0 and M1 on eligible completed seasons through ``through_season`` for the next one."""
+    """Fit B0 and M1 on eligible completed seasons through ``through_season`` for the next one.
+
+    The fit time is the wall-clock time of the fit; only labels available by then are used.
+    """
     if config.model.selected_alpha is None:
         raise InvalidInputError("fit requires model.selected_alpha from the development decision")
     started = time.time()
@@ -799,16 +854,20 @@ def fit_forecast_bundles(
     specs = model_variants(config, candidates=False)
     out_dir = forecast_bundle_dir(config, forecast_season)
     paths: dict[str, Path] = {}
+    fit_time = pd.Timestamp(utc_now())
     labeled = _labeled_rows(dataset)
     train_all = labeled[
         labeled["season"].isin(training_seasons(forecast_season, config.model.train_start_season))
     ]
+    train_all, dropped = _available_training_rows(train_all, fit_time)
+    if train_all.empty:
+        raise MissingDataError("no training labels available at fit time")
     res_seasons = residual_seasons(
         forecast_season, config.model.residual_first_season, config.model.residual_window_seasons
     )
     for spec in specs:
         fits = chronological_fits(dataset, spec, res_seasons, config.model.train_start_season)
-        residuals, ids = residual_pool(fits, res_seasons)
+        residuals, ids = residual_pool(fits, res_seasons, available_by=fit_time)
         params = fit_residual_params(
             residuals,
             seasons=[s for s in res_seasons if s in fits],
@@ -825,9 +884,14 @@ def fit_forecast_bundles(
             params,
             ids,
             forecast_season=forecast_season,
-            data_mode=config.data.mode,
+            policy=dataset.policy,
+            features_cfg=config.features,
             config_hash=config.config_hash(),
-            notes=[f"fit through season {through_season} for {forecast_season} forecasting"],
+            notes=[
+                f"fit through season {through_season} for {forecast_season} forecasting",
+                f"fit_time_utc={iso_utc(fit_time.to_pydatetime())}",
+                f"training_rows_dropped_unavailable={dropped}",
+            ],
         )
         paths[spec.model_id] = bundle.save(out_dir / f"{spec.model_id}.json")
     registry = RunRegistry(config.run.artifacts_dir)
@@ -855,12 +919,36 @@ def fit_forecast_bundles(
         data_mode=config.data.mode,
         evaluation_mode="fit",
         output_hashes={k: sha256_file(v) for k, v in paths.items()},
-        notes=[f"bundles saved under {out_dir}"],
+        notes=[
+            f"bundles saved under {out_dir}",
+            f"fit_time_utc={iso_utc(fit_time.to_pydatetime())}",
+        ],
         runtime_seconds=round(time.time() - started, 2),
     )
     write_json(run_dir / "manifest.json", manifest.model_dump())
     registry.record(manifest)
     return manifest, paths
+
+
+SlateLoader = Callable[
+    [ExperimentConfig, list[int], bool], tuple[pd.DataFrame, pd.DataFrame, dict[str, str]]
+]
+
+
+def load_slate_inputs(
+    config: ExperimentConfig, seasons: list[int], offline: bool
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, str]]:
+    """Games and completed team-games from the cache for a live/as-of slate."""
+    manifest_src = ingest(seasons, config.data.cache_dir, offline=offline, refresh=False)
+    policy = policy_from_config(config)
+    data = normalize_sources(
+        manifest_src,
+        seasons,
+        game_type=config.data.game_type,
+        completed_game_lag_hours=policy.completed_game_lag_hours,
+    )
+    team_games = aggregate_team_games(data.games, data.plays, data.results)
+    return data.games, team_games, manifest_src.file_hashes()
 
 
 def predict_slate(
@@ -870,9 +958,27 @@ def predict_slate(
     *,
     as_of: pd.Timestamp | None,
     offline: bool,
+    reconstruct_standard_horizon: bool = False,
+    loader: SlateLoader | None = None,
 ) -> tuple[RunManifest, pd.DataFrame]:
-    """Price upcoming games with the saved forecast bundle; never trains on the fly."""
+    """Price games with the saved forecast bundle; never trains on the fly.
+
+    Three explicit horizons:
+
+    - live (default): information time is the generation time; only games that have not kicked
+      off are priced; labeled ``custom_horizon``.
+    - ``as_of``: an explicit research time in the past; games kicking off after it are priced.
+    - ``reconstruct_standard_horizon``: each game's own ``kickoff − 24h`` cutoff, allowed only
+      once that cutoff has passed; a historical reconstruction, never a live forecast.
+    """
     started = time.time()
+    now = pd.Timestamp(utc_now())
+    if as_of is not None and reconstruct_standard_horizon:
+        raise InvalidInputError("use either --as-of or --reconstruct-standard-horizon, not both")
+    if as_of is not None and as_of > now:
+        raise InvalidInputError(
+            f"--as-of {as_of} is in the future; information time cannot exceed now"
+        )
     bundle_dir = forecast_bundle_dir(config, season)
     if not bundle_dir.exists():
         raise MissingDataError(
@@ -883,22 +989,28 @@ def predict_slate(
     primary = next((b for b in bundles.values() if b.family == "ridge_score"), None)
     if primary is None:
         raise MissingDataError("forecast bundle directory has no ridge_score bundle")
-    seasons = list(range(config.data.seasons[0], season + 1))
-    manifest_src = ingest(seasons, config.data.cache_dir, offline=offline, refresh=False)
     policy = policy_from_config(config)
-    data = normalize_sources(
-        manifest_src,
-        seasons,
-        game_type=config.data.game_type,
-        completed_game_lag_hours=policy.completed_game_lag_hours,
-    )
-    team_games = aggregate_team_games(data.games, data.plays, data.results)
-    targets = data.games[data.games["season"] == season]
+    for bundle in bundles.values():
+        check_bundle_compatible(bundle, policy, config.features)
+    seasons = list(range(config.data.seasons[0], season + 1))
+    games, team_games, source_hashes = (loader or load_slate_inputs)(config, seasons, offline)
+    targets = games[games["season"] == season]
     if week is not None:
         targets = targets[targets["week"] == week]
-    now = pd.Timestamp(utc_now())
-    if as_of is not None:
-        targets = targets[targets["kickoff_utc"] > as_of]
+    if reconstruct_standard_horizon:
+        horizon = "standard_reconstruction"
+        cutoffs = policy.cutoff_for(targets["kickoff_utc"])
+        pending = targets[cutoffs > now]
+        if len(pending):
+            raise InvalidInputError(
+                f"{len(pending)} games have not reached their standard cutoff yet; use the live "
+                "forecast (no --as-of) or wait"
+            )
+        cutoff_override = None
+    else:
+        horizon = "as_of" if as_of is not None else "live"
+        cutoff_override = as_of if as_of is not None else now
+        targets = targets[targets["kickoff_utc"] > cutoff_override]
     registry = RunRegistry(config.run.artifacts_dir)
     run_id = new_run_id("forecast")
     run_dir = registry.create_run_dir(run_id)
@@ -907,11 +1019,12 @@ def predict_slate(
             config,
             season,
             week,
-            as_of=as_of,
+            horizon=horizon,
+            cutoff_override=cutoff_override,
             started=started,
             bundles=bundles,
             primary=primary,
-            manifest_src=manifest_src,
+            source_hashes=source_hashes,
             policy=policy,
             team_games=team_games,
             targets=targets,
@@ -930,11 +1043,12 @@ def _predict_slate_into(
     season: int,
     week: int | None,
     *,
-    as_of: pd.Timestamp | None,
+    horizon: str,
+    cutoff_override: pd.Timestamp | None,
     started: float,
     bundles: dict[str, ModelBundle],
     primary: ModelBundle,
-    manifest_src: SourceManifest,
+    source_hashes: dict[str, str],
     policy: AsOfPolicy,
     team_games: pd.DataFrame,
     targets: pd.DataFrame,
@@ -943,29 +1057,38 @@ def _predict_slate_into(
     run_id: str,
     run_dir: Path,
 ) -> tuple[RunManifest, pd.DataFrame]:
-    notes: list[str] = []
+    notes: list[str] = [f"horizon={horizon}"]
+    if horizon == "standard_reconstruction":
+        notes.append(
+            "historical reconstruction of the standard kickoff-24h horizon; not a live forecast"
+        )
+    training_modes = sorted({b.data_mode for b in bundles.values()})
+    notes.append(
+        f"training_data_mode={','.join(training_modes)}; forecast_input_mode={policy.mode}"
+    )
     rows: list[dict[str, Any]] = []
     dists: list[dict[str, Any]] = []
     if targets.empty:
-        notes.append("empty slate: no games match the requested season/week/as-of filter")
+        notes.append("empty slate: no games match the requested season/week/horizon filter")
         feats = pd.DataFrame()
     else:
         feats = build_features(
-            targets, team_games, policy, config.features, cutoff_override_utc=as_of
+            targets, team_games, policy, config.features, cutoff_override_utc=cutoff_override
         )
         require_forecastable(feats)
         assert_no_market_columns(list(feats.columns), "predict_slate")
         feats_hash = features_hash(feats)
-        std_policy = policy.forecast_policy_label
         for game in targets.sort_values(["kickoff_utc", "game_id"]).itertuples(index=False):
             g = pd.Series(game._asdict())
             gf = feats[feats["game_id"] == game.game_id]
             cutoff = pd.Timestamp(gf["cutoff_utc"].iloc[0])
             standard_cutoff = pd.Timestamp(policy.cutoff_for(pd.Timestamp(game.kickoff_utc)))
-            forecast_policy = std_policy if cutoff == standard_cutoff else "custom_horizon"
-            flags = _quality_flags(gf)
             if cutoff > now:
-                flags.append("cutoff_in_future_features_from_current_cache")
+                raise ModelValidationError("internal error: forecast cutoff after generation time")
+            forecast_policy = (
+                policy.forecast_policy_label if cutoff == standard_cutoff else "custom_horizon"
+            )
+            flags = _quality_flags(gf)
             if policy.mode == "recorded_asof":
                 observed = gf["max_observed_utc"].max()
                 if pd.notna(observed) and observed > cutoff:
@@ -973,7 +1096,13 @@ def _predict_slate_into(
                         "recorded_asof: source data was first observed after the cutoff; "
                         "refusing to backdate"
                     )
-            for _model_id, bundle in bundles.items():
+            for bundle in bundles.values():
+                created = pd.Timestamp(bundle.created_at_utc)
+                if policy.mode == "recorded_asof" and created > cutoff:
+                    raise MissingDataError(
+                        f"recorded_asof: bundle {bundle.model_id} was created at {created}, "
+                        f"after the decision time {cutoff}"
+                    )
                 model = bundle.score_model(config.seed)
                 mu = predict_location(model, gf)
                 loc = game_locations(gf, mu).iloc[0]
@@ -982,20 +1111,22 @@ def _predict_slate_into(
                     bundle.residual_params(),
                     config.distribution,
                 )
-                rows.append(
-                    prediction_row(
-                        dist,
-                        run_id=run_id,
-                        game=g,
-                        cutoff=cutoff,
-                        model_id=bundle.model_id,
-                        data_mode=policy.mode,
-                        forecast_policy=forecast_policy,
-                        config_hash=config.config_hash(),
-                        features_hash_value=feats_hash,
-                        quality_flags=flags,
-                    )
+                row = prediction_row(
+                    dist,
+                    run_id=run_id,
+                    game=g,
+                    cutoff=cutoff,
+                    model_id=bundle.model_id,
+                    data_mode=policy.mode,
+                    forecast_policy=forecast_policy,
+                    config_hash=config.config_hash(),
+                    features_hash_value=feats_hash,
+                    quality_flags=flags,
                 )
+                row["model_created_utc"] = created
+                row["training_data_mode"] = bundle.data_mode
+                row["horizon"] = horizon
+                rows.append(row)
                 dists.append(
                     {
                         "game_id": game.game_id,
@@ -1010,7 +1141,8 @@ def _predict_slate_into(
     for model_id in bundles:
         frame = _finalize_predictions([r for r in rows if r["model_id"] == model_id])
         if len(frame):
-            frame["as_of_utc"] = as_of if as_of is not None else pd.NaT
+            frame["model_created_utc"] = pd.to_datetime(frame["model_created_utc"], utc=True)
+            frame["information_time_utc"] = frame["cutoff_utc"]
         by_model[model_id] = frame
         write_parquet(frame, run_dir / f"predictions_{model_id}.parquet")
     slate = by_model.get(primary.model_id, _finalize_predictions([]))
@@ -1024,6 +1156,10 @@ def _predict_slate_into(
                 write_parquet(part, run_dir / f"distributions_{model_id}.parquet")
     slate.to_csv(run_dir / "slate.csv", index=False)
     git = git_info()
+    if horizon == "standard_reconstruction":
+        manifest_policy = policy.forecast_policy_label
+    else:
+        manifest_policy = "custom_horizon"
     manifest = RunManifest(
         run_id=run_id,
         run_kind="forecast",
@@ -1036,16 +1172,21 @@ def _predict_slate_into(
         seed=config.seed,
         config=config.resolved_dict(),
         config_hash=config.config_hash(),
-        source_file_hashes=manifest_src.file_hashes(),
+        source_file_hashes=source_hashes,
         schema_version=SCHEMA_VERSION,
         feature_version=FEATURE_VERSION,
         model_id=primary.model_id,
         training_cutoff_utc=primary.training_cutoff_utc,
-        forecast_policy="custom_horizon" if as_of is not None else policy.forecast_policy_label,
+        forecast_policy=manifest_policy,
         data_mode=policy.mode,
         evaluation_mode="forecast",
         output_hashes={"predictions.parquet": sha256_file(run_dir / "predictions.parquet")},
-        notes=notes + ([f"as_of={iso_utc(as_of.to_pydatetime())}"] if as_of is not None else []),
+        notes=notes
+        + (
+            [f"information_time_utc={iso_utc(cutoff_override.to_pydatetime())}"]
+            if cutoff_override is not None
+            else []
+        ),
         runtime_seconds=round(time.time() - started, 2),
     )
     write_json(run_dir / "manifest.json", manifest.model_dump())

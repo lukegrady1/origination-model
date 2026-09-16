@@ -20,6 +20,12 @@ spec's formulas here; link to the spec section instead.
 - The holdout (2025) runs only against a frozen protocol (`artifacts/protocol/`). Reruns need
   `--rerun-reason` and are labeled. Do not tune against 2025.
 - Report poor results. There is no success gate requiring M1 to beat B0 and no ROI claim.
+- Every feature input, including league priors, rest metadata, labels and residual pools, obeys
+  the availability policy; `unobserved_inputs`/`insufficient_warmup` rows never train or forecast.
+- Bundles carry a feature/policy contract; forecasting checks it. Saved distributions are looked
+  up by (game, model). Forecast horizons are explicit (live / as-of / reconstruction).
+- The frozen protocol digests research code and `uv.lock`; a protocol without those digests is
+  refused for reruns. Never edit or regenerate the original holdout artifacts.
 
 ## Commands
 

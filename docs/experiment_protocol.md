@@ -39,11 +39,38 @@ Only completed regular-season games with valid final scores are scored. Each gam
 
 ## Post-freeze code changes (logged, no holdout rerun)
 
+Immediately after the freeze:
+
 - `experiment.predict_slate`: forecast outputs are now written per model
   (`predictions_<model_id>.parquet`) because the slate schema key is (run, game, cutoff); the
   first forecast attempt failed validation and its empty run directory was removed.
 - Run directories are removed when a run fails before writing a manifest.
-- Neither change touches the backtest numerics; the holdout artifacts are unchanged.
+
+Correctness pass after the 2026-09-16 implementation review (findings R1–R7):
+
+- R1: league priors, rest metadata, labels and residual pools are now filtered by the as-of
+  policy; team-game rows carry both schedule and PBP observation times; feature rows carry
+  `unobserved_inputs` and `prior_games_hash`; fits drop labels unavailable at fit time.
+  In `historical_reconstruction` every prior-season row is eligible at every in-season cutoff
+  and every label is available at each season's first cutoff, so these filters select exactly
+  the rows the frozen runs used. The saved holdout artifacts were not regenerated.
+- R2: saved distributions are looked up by (game, model) and validated.
+- R3: the frozen protocol now includes a scoped source-code digest and the `uv.lock` digest.
+  The original V1 protocol (`frozen_protocol.json`) predates this and is therefore
+  **unverifiable against the current implementation**; the verifier refuses any holdout run
+  against it. It is preserved unchanged with its single recorded holdout run. Any future rerun
+  must freeze a new protocol under a new `run.label` and is a separately labeled experiment.
+- R4: bundles carry a feature/policy contract that is checked before forecasting; the 2026
+  bundles were refit (`fit-20260916T182932Z-c541fc`), which does not touch holdout metrics.
+- R5: forecasts have three explicit horizons (live = generation time, `--as-of`, and
+  `--reconstruct-standard-horizon`); the earlier "week 2 standard horizon" slate that used
+  future cutoffs was removed from `reports/final/` and replaced by a live week 3 slate and a
+  week 1 reconstruction.
+- R6: away-spread line CLV sign corrected (synthetic-demo mechanics only; no real odds).
+- R7: model-card and recap wording now states exactly which intervals exclude zero.
+
+No backtest numerics changed for the frozen data mode; the development, confirmation and
+holdout artifacts are the originals.
 
 ## Measures reported
 

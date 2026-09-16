@@ -9,14 +9,14 @@ commands run, failures, and deviations for review.
 |---|---|---|
 | A01 | Fresh checkout installs from lockfile, offline demo runs | done |
 | A02 | Real coverage audited, exclusions exported | done (2022 gap as coverage note; see deviations) |
-| A03 | Features/labels separated, as-of and future-mutation tests, data mode on reports | done |
+| A03 | Features/labels separated, as-of and future-mutation tests, data mode on reports | done (R1 fix extended recorded_asof to priors, labels, residuals, rest) |
 | A04 | B0, M1, ablation on identical grouped chronological splits | done |
 | A05 | Residuals from prior chronological predictions; PMF/support/covariance checks | done |
 | A06 | Pricing fixtures exact | done |
-| A07 | Frozen 2025 report complete | done |
-| A08 | Fixed-input reproducibility within tolerances | done |
-| A09 | CLI forecast exports; dashboard shows artifacts and handles missing odds | done |
-| A10 | Market module rejects ineligible odds, settles synthetic fixtures, paid data absence disclosed | done |
+| A07 | Frozen 2025 report complete | done; code-state provenance of the original freeze not reconstructible (R3) |
+| A08 | Fixed-input reproducibility within tolerances | done; code/lock digests now frozen for future runs |
+| A09 | CLI forecast exports; dashboard shows artifacts and handles missing odds | done after R4/R5 (explicit horizons, bundle contracts) |
+| A10 | Market module rejects ineligible odds, settles synthetic fixtures, paid data absence disclosed | done after R2/R6 |
 | A11 | Ruff, mypy, pytest, offline CI, real-source smoke | done locally; CI unobserved on GitHub |
 | A12 | Docs complete | done |
 
@@ -78,6 +78,23 @@ NFL_ORIGINATION_BLOCK_NETWORK=1 uv run pytest -q             # 109 passed
 - Bundles are JSON rather than pickled objects (routine engineering choice; safer loading).
 - The undefined conditional probability at an all-push line is treated as maximally unbalanced
   in the fair-line search (documented in `docs/architecture.md`).
+
+## Correctness pass after the implementation review (2026-09-16)
+
+Seven findings (R1–R7) were repaired without changing the architecture; see
+`docs/review_packet.md` (follow-up table) and `docs/experiment_protocol.md`. Commands run:
+
+```bash
+uv run ruff check . && uv run ruff format --check . && uv run mypy src/nfl_origination
+NFL_ORIGINATION_BLOCK_NETWORK=1 uv run pytest -q                    # 132 tests incl. 23 regressions
+uv run nfl-origination fit --through-season 2025 --config configs/v1.yaml --offline   # bundles refit with contracts
+uv run nfl-origination predict --season 2026 --week 3 --config configs/v1.yaml --offline                 # live
+uv run nfl-origination predict --season 2026 --week 3 --as-of 2026-09-16T12:00:00Z --config configs/v1.yaml --offline
+uv run nfl-origination predict --season 2026 --week 1 --reconstruct-standard-horizon --config configs/v1.yaml --offline
+uv run nfl-origination backtest --config configs/holdout.yaml --offline --rerun-reason "gate check"   # refused (legacy protocol)
+```
+
+The holdout was not rerun and its artifacts are unchanged.
 
 ## Unresolved blockers / open questions for planning
 

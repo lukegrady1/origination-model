@@ -51,12 +51,17 @@ vs 0.066; P(margin = ±7) 0.026/0.024 vs 0.048/0.048; P(tie) 0.028 vs 0.004; P(t
 vs 0.445. The rounded normal badly under-weights 3 and 7 and over-weights ties. This is the
 distribution's known structural weakness, not a calibration bug.
 
-**Recommendation.** M1 (alpha 100) is preferred over B0 on every headline error and probability
-metric with bootstrap intervals excluding zero on the holdout, confirmation and development
-seasons. The EPA-free ablation is within noise of M1 (holdout score MAE 7.464 vs 7.439), so the
-improvement over B0 does not depend on possibly-revised EPA fields. Further modeling is required
-before any real pregame use: a key-number-aware score distribution, personnel/injury and weather
-inputs, and a certified point-in-time data path.
+**Recommendation.** M1 (alpha 100) is the preferred V1 research model over B0. Stated precisely:
+on the holdout the paired block-bootstrap intervals lie entirely below zero for score MAE, margin
+MAE, 3-way log loss, 3-way Brier, margin CRPS and total CRPS (the last only narrowly, upper bound
+−0.018). Total MAE improves in point estimate (−0.355) but its interval [−0.695, +0.018] includes
+no improvement. Confirmation shows the same pattern (total MAE and total CRPS intervals include
+zero); development intervals exclude zero on all of these. Score RMSE, binary log loss/Brier,
+coverage and tie rates are reported without intervals. The EPA-free ablation is within noise of
+M1 (holdout score MAE 7.464 vs 7.439), which is evidence that the displayed performance is not
+heavily dependent on EPA features; it is not proof that historical data-revision concerns are
+gone. Further modeling is required before any real pregame use: a key-number-aware score
+distribution, personnel/injury and weather inputs, and a certified point-in-time data path.
 
 ## Limitations and caveats
 
@@ -73,6 +78,10 @@ inputs, and a certified point-in-time data path.
   and `team_off_dropback_epa` (+0.72) points per standard deviation.
 
 **Provenance.** Protocol checksum `a31f98d0…`, config hash and source SHA-256 hashes are in
-`reports/final/holdout/manifest.json`. Tested on Apple M5 (10 cores, 24 GB), macOS 26.6,
+`reports/final/holdout/manifest.json`. That protocol was frozen before code/lockfile digests were
+enforced and the working tree was dirty at freeze time, so the exact code state of the holdout
+run cannot be reconstructed from the commit alone; the artifacts are preserved as they are, the
+gate now refuses any rerun against that protocol, and a rerun would require a new labeled
+protocol (see `docs/experiment_protocol.md`). Tested on Apple M5 (10 cores, 24 GB), macOS 26.6,
 Python 3.12.14: ingest of 17 seasons 86 s; features 7 s; development backtest 72 s;
 confirmation/holdout 5 s each; offline demo 37 s; full test suite ≈ 3 min.

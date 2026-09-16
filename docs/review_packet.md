@@ -31,14 +31,14 @@ settles timestamped odds on paper, and shows saved artifacts in a Streamlit dash
 |---|---|---|
 | A01 | Met | `uv sync --frozen` then `demo --offline` runs from fixtures in ~37 s; CI does the same with network blocked (`tests/conftest.py`, `.github/workflows/ci.yml`) |
 | A02 | Met with note | `validate-data --seasons 2010:2025`: 16 seasons audited; one 2022 game absent from the source is reported in `coverage_report.json` notes and every report's samples table, not as an exclusion row (see deviations) |
-| A03 | Met | `labels.parquet` separate from features; `tests/unit/test_temporal.py`, `test_models_and_leakage.py`; data mode appears in every manifest, prediction row and report |
+| A03 | Met after R1 fix | `labels.parquet` separate from features; `tests/unit/test_temporal.py`, `test_models_and_leakage.py`, `test_review_regressions.py::test_r1_*`; data mode appears in every manifest, prediction row and report. `recorded_asof` still has no prospective snapshots, so it is enforced, not exercised, on real data |
 | A04 | Met | Development/confirmation/holdout runs score B0, M1 and the EPA-free ablation on identical grouped folds (`evaluation/splits.py`, `test_fold_grouping_and_scaler_isolation`) |
 | A05 | Met | Residual pools use only prior out-of-fold seasons (≥512 games); PMF/support/covariance checks in `tests/unit/test_distribution.py` |
 | A06 | Met | `tests/unit/test_pricing.py` exact fixtures (24–21, 20–20, ±150/−200, EV 0.1454545, 1.8 zero-EV, quarter lines rejected) |
-| A07 | Met | `reports/final/holdout/report.md` + `metrics.json`: all required measures, baselines, bootstrap intervals, counts, limitations |
-| A08 | Met | `tests/test_end_to_end_demo.py::test_fixed_inputs_reproduce_within_tolerance` (1e-8 probabilities, 1e-6 metrics) |
-| A09 | Met | `predict --season 2026 --week 3 --as-of …` exports traceable prices labeled `custom_horizon`; dashboard renders all pages and shows "unavailable: no eligible timestamped odds" (`tests/integration/test_dashboard.py`) |
-| A10 | Met | `tests/unit/test_odds_import.py` rejects stale/future/incomplete/mismatched/duplicate/ambiguous quotes; synthetic settlement in the demo; absence of paid data disclosed in reports and model card |
+| A07 | Met with provenance caveat | `reports/final/holdout/report.md` + `metrics.json`: all required measures, baselines, bootstrap intervals, counts, limitations. The holdout's frozen protocol predates code/lockfile digests and was frozen on a dirty tree, so its exact code state is not reconstructible (R3) |
+| A08 | Met with provenance caveat | `tests/test_end_to_end_demo.py::test_fixed_inputs_reproduce_within_tolerance` (1e-8 probabilities, 1e-6 metrics); code/lock digests are now part of the protocol for future runs |
+| A09 | Met after R4/R5 fixes | Live `predict` uses generation time and is labeled `custom_horizon`; `--as-of` and `--reconstruct-standard-horizon` are explicit; bundles are contract-checked; dashboard renders all pages and shows "unavailable: no eligible timestamped odds" |
+| A10 | Met after R2/R6 fixes | Distribution lookup keyed by (game, model); away-spread CLV sign fixed; `tests/unit/test_odds_import.py` and `test_review_regressions.py::test_r2_*`, `test_r6_*`; absence of paid data disclosed |
 | A11 | Met | ruff, ruff format, mypy, 109 pytest tests pass locally with network blocked; real-source smoke = `validate-data` on the 2010–2025 cache; CI workflow committed (not yet observed running on GitHub) |
 | A12 | Met | README, model card, data dictionary, data sources/attribution, experiment protocol, this packet |
 
@@ -53,12 +53,30 @@ within noise of the full model. Interval coverage is close to nominal (80% margi
 observed and predicts ties seven times too often. No market comparison or ROI was run on real
 odds because none were supplied.
 
+## Follow-up: implementation review findings (2026-09-16)
+
+| Finding | Fix | Tests |
+|---|---|---|
+| R1 recorded_asof incomplete | `features/builder.py`: priors filtered by eligibility at the cutoff and cached per cutoff when not fully eligible, `prior_games_hash` and prior observation times in provenance, `unobserved_inputs` flag for an unobserved schedule row, rest uses observed schedule rows; `features/aggregate.py`: `first_observed_utc` = max(schedule, PBP); `build_labels` uses the later of `kickoff+lag` and observation in recorded mode; `experiment.chronological_fits` / `residual_pool` drop labels unavailable at fit time and record counts | `test_review_regressions.py::test_r1_*` (end-to-end feature/fit path, not just the mask) |
+| R2 wrong model's distribution | `market/compare.load_distribution(dists, game_id, model_id)`: exact one match, PMF validated; callers pass the prediction's model; CLI prefers per-model files | `test_r2_*` |
+| R3 protocol did not verify code | `protocol.py`: scoped `code_digest` (excludes dashboard, CLI, report rendering) and `lock_digest` in the checksummed payload; legacy protocols refused outright; labeled protocol files per `run.label` | `test_r3_*` |
+| R4 bundle compatibility | `models/bundle.py`: `feature_contract` + `contract_hash` stored and checked (`check_bundle_compatible`); `predict_game` rejects rows from another data mode or with unobserved inputs; recorded_asof requires bundle creation before the decision time | `test_r4_*` |
+| R5 future cutoffs labeled standard | `experiment.predict_slate`: live horizon = generation time (started games excluded, `custom_horizon`), explicit `--as-of` (past only), explicit `--reconstruct-standard-horizon` (only once cutoffs have passed); `model_created_utc` on forecast rows; comparison/paper backtest exclude decisions before model availability | `test_r5_*` |
+| R6 away-spread CLV sign | `market/settle._line_clv` uses `bet − close` for both spread sides | `test_r6_*` (helper and full paper-backtest path) |
+| R7 overstated support | `docs/model_card.md`, `RECAP.md` state exactly which intervals exclude zero | n/a |
+
+Numerical research outputs affected: none for the committed development/confirmation/holdout
+artifacts (all `historical_reconstruction`, where the new filters select the same rows). The
+2026 forecast bundles were refit and the forecast slates regenerated under the new horizon
+semantics.
+
 ## Deviations and open items
 
 - The canceled 2022 BUF–CIN game is missing from the source schedule entirely, so it cannot be
   listed by game ID; it is surfaced as a coverage note (271 of 272) rather than an exclusion row.
-- Two code changes landed after the freeze (forecast output layout and failed-run cleanup); they
-  do not touch backtest numerics and the holdout was not rerun. Logged in the protocol doc.
+- Code changed after the freeze (forecast output layout, failed-run cleanup, and the R1–R6
+  correctness pass); none touch the frozen runs' numerics and the holdout was not rerun. The
+  original protocol is now unverifiable by construction and refuses reruns; see the protocol doc.
 - `recorded_asof` mode is implemented and tested at the policy level, but no prospective
   snapshots exist yet: the cache's first-observed times are all 2026-09-16, so recorded-asof
   backtests correctly report ineligible data.
@@ -71,4 +89,5 @@ odds because none were supplied.
 "Built a reproducible NFL pregame pricing pipeline with chronological validation, joint outcome
 probabilities and tested spread/total settlement; on a frozen 2025 holdout (272 games) the Ridge
 score model cut team-game score MAE from 7.88 to 7.44 and 3-way log loss from 0.730 to 0.671
-versus a league baseline, with bootstrap intervals excluding zero."
+versus a league baseline, with paired block-bootstrap intervals excluding zero on score MAE,
+margin MAE, log loss, Brier and margin CRPS (total MAE improved in point estimate only)."
