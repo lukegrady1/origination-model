@@ -582,3 +582,113 @@ def collect_odds_cmd(
         return
     summary = _run(collect_odds_once, cfg)
     _echo_json(summary)
+
+
+ProtocolOpt = Annotated[str | None, typer.Option("--protocol-id", help="Epoch protocol ID")]
+
+
+@app.command("freeze-prospective")
+def freeze_prospective_cmd(
+    config: ConfigOpt = Path("configs/v2_prospective.yaml"),
+    champion: Annotated[Path | None, typer.Option(help="Champion bundle JSON")] = None,
+    challenger: Annotated[Path | None, typer.Option(help="Challenger bundle JSON")] = None,
+    label: Annotated[str, typer.Option(help="Epoch label")] = "v2",
+) -> None:
+    """Freeze an immutable prospective epoch (system time) and set the active pointer."""
+    from nfl_origination.prospective.clock import SystemClock
+    from nfl_origination.prospective.protocol import freeze_epoch
+    from nfl_origination.prospective.runner import resolve_default_bundles
+
+    cfg = _load(config, None)
+    champ, chal = _run(resolve_default_bundles, cfg, champion, challenger)
+    epoch = _run(
+        freeze_epoch, cfg, SystemClock(), champion_path=champ, challenger_path=chal, label=label
+    )
+    _echo_json(
+        {
+            "protocol_id": epoch.protocol_id,
+            "activated_at_utc": epoch.activated_at_utc,
+            "champion": epoch.champion.model_id,
+            "challenger": None if epoch.challenger is None else epoch.challenger.model_id,
+            "code_digest": epoch.code_digest[:16],
+        }
+    )
+
+
+@app.command("prospective-tick")
+def prospective_tick_cmd(
+    config: ConfigOpt = Path("configs/v2_prospective.yaml"),
+    protocol_id: ProtocolOpt = None,
+    offline: OfflineOpt = False,
+) -> None:
+    """One bounded cycle: read the epoch, collect permitted snapshots, forecast due games, exit."""
+    from nfl_origination.prospective.clock import SystemClock
+    from nfl_origination.prospective.runner import tick
+
+    cfg = _load(config, None)
+    if offline and cfg.v2 is not None and cfg.v2.market.enabled:
+        typer.echo("--offline: market collection skipped this tick (replay cannot be prospective)")
+    summary = _run(
+        tick,
+        cfg,
+        clock=SystemClock(),
+        protocol_id=protocol_id,
+        provider=None if not offline else _no_provider(),
+    )
+    _echo_json(summary.to_dict())
+
+
+def _no_provider() -> Any:
+    class _Offline:
+        def collect(self, **kwargs: Any) -> Any:
+            raise RuntimeError("offline: no network collection")
+
+    return _Offline()
+
+
+@app.command("settle-prospective")
+def settle_prospective_cmd(
+    config: ConfigOpt = Path("configs/v2_prospective.yaml"),
+    protocol_id: ProtocolOpt = None,
+    refresh: Annotated[
+        bool, typer.Option(help="Fetch new source observations first (network)")
+    ] = False,
+) -> None:
+    """Append final results/corrections for committed forecasts; forecasts are never modified."""
+    from nfl_origination.prospective.clock import SystemClock
+    from nfl_origination.prospective.runner import settle
+
+    cfg = _load(config, None)
+    _echo_json(_run(settle, cfg, clock=SystemClock(), protocol_id=protocol_id, refresh=refresh))
+
+
+@app.command("verify-ledger")
+def verify_ledger_cmd(
+    config: ConfigOpt = Path("configs/v2_prospective.yaml"),
+    protocol_id: ProtocolOpt = None,
+) -> None:
+    """Recompute ledger hashes/markers and check the epoch against the current environment."""
+    from nfl_origination.prospective.runner import verify
+
+    cfg = _load(config, None)
+    report = _run(verify, cfg, protocol_id=protocol_id)
+    _echo_json(report)
+    if report["status"] != "ok" or report["epoch_status"] != "ok":
+        raise typer.Exit(code=4)
+
+
+@app.command("demo-v2")
+def demo_v2_cmd(
+    config: ConfigOpt = Path("configs/v2_demo.yaml"),
+    offline: OfflineOpt = True,
+) -> None:
+    """Synthetic end-to-end V2 lifecycle with a controlled clock; no network, no credentials."""
+    from nfl_origination.prospective.demo import run_demo_v2
+    from nfl_origination.synthetic import SYNTHETIC_LABEL
+
+    cfg = _load(config, None)
+    typer.secho(SYNTHETIC_LABEL, fg=typer.colors.YELLOW)
+    if not offline:
+        typer.echo("demo-v2 always runs offline")
+    log = _run(run_demo_v2, cfg)
+    _echo_json({k: v for k, v in log.items() if k != "steps"})

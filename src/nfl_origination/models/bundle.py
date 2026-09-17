@@ -60,6 +60,9 @@ class ModelBundle(BaseModel):
     config_hash: str | None = None
     feature_contract: dict[str, Any] | None = None
     contract_hash: str | None = None
+    # V2: explicit dual-mode contract. Training on retrospectively reconstructed history while
+    # forecasting from strictly observed live inputs is allowed only when declared here.
+    execution_contract: dict[str, Any] | None = None
     dependency_versions: dict[str, str] = Field(default_factory=dependency_versions)
     created_at_utc: str = Field(default_factory=lambda: iso_utc(utc_now()) or "")
     notes: list[str] = Field(default_factory=list)
@@ -128,10 +131,19 @@ def check_bundle_compatible(
             for k, v in current.items()
             if bundle.feature_contract.get(k) != v
         }
-        raise ModelValidationError(
-            f"bundle {bundle.model_id} is incompatible with the current feature/policy "
-            f"configuration: {diffs}"
+        dual = bundle.execution_contract or {}
+        dual_ok = (
+            set(diffs) == {"data_mode"}
+            and policy.mode == "recorded_asof"
+            and bundle.data_mode == "historical_reconstruction"
+            and dual.get("training_evidence_mode") == "retrospective_reconstruction"
+            and dual.get("forecast_evidence_mode") == "observed_prospective"
         )
+        if not dual_ok:
+            raise ModelValidationError(
+                f"bundle {bundle.model_id} is incompatible with the current feature/policy "
+                f"configuration: {diffs}"
+            )
 
 
 def make_model(spec: FitSpec) -> ScoreModel:
@@ -200,6 +212,7 @@ def build_bundle(
     features_cfg: FeaturesConfig,
     config_hash: str | None,
     notes: list[str] | None = None,
+    execution_contract: dict[str, Any] | None = None,
 ) -> ModelBundle:
     cutoff = train["label_available_utc"].max() if "label_available_utc" in train else None
     contract = feature_contract(policy, features_cfg, spec.feature_set)
@@ -224,6 +237,7 @@ def build_bundle(
         config_hash=config_hash,
         feature_contract=contract,
         contract_hash=contract_hash(contract),
+        execution_contract=execution_contract,
         notes=notes or [],
     )
 
@@ -247,7 +261,13 @@ def predict_game(
         check_bundle_compatible(bundle, policy, features_cfg)
     if "data_mode" in game_features.columns:
         modes = set(game_features["data_mode"].astype(str))
-        if modes != {bundle.data_mode}:
+        dual = bundle.execution_contract or {}
+        dual_ok = (
+            modes == {"recorded_asof"}
+            and bundle.data_mode == "historical_reconstruction"
+            and dual.get("forecast_evidence_mode") == "observed_prospective"
+        )
+        if modes != {bundle.data_mode} and not dual_ok:
             raise ModelValidationError(
                 f"feature rows were built under {sorted(modes)} but the bundle was trained "
                 f"under {bundle.data_mode!r}; provenance would be mislabeled"

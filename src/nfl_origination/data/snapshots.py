@@ -235,7 +235,12 @@ def select_version(
 
 
 def manifest_as_of(
-    cache_dir: Path, seasons: list[int], cutoff: pd.Timestamp, *, allow_synthetic: bool = False
+    cache_dir: Path,
+    seasons: list[int],
+    cutoff: pd.Timestamp,
+    *,
+    allow_synthetic: bool = False,
+    targets: list[tuple[str, int | None]] | None = None,
 ) -> SourceManifest:
     """Source manifest pinned to the versions observed at or before ``cutoff``.
 
@@ -244,10 +249,8 @@ def manifest_as_of(
     """
     entries: list[SourceEntry] = []
     missing: list[str] = []
-    targets: list[tuple[str, int | None]] = [
-        (SCHEDULE_DATASET, None),
-        *[(PBP_DATASET, s) for s in seasons],
-    ]
+    if targets is None:
+        targets = [(SCHEDULE_DATASET, None), *[(PBP_DATASET, s) for s in seasons]]
     for dataset, season in targets:
         r = select_version(cache_dir, dataset, season, cutoff, allow_synthetic=allow_synthetic)
         if r is None:

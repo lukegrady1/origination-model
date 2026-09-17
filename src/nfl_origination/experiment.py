@@ -168,10 +168,27 @@ def prepare_dataset(
             allow_synthetic=bool(config.v2 and config.v2.evidence.synthetic),
         )
     if config.data.source == "synthetic":
-        syn = generate_synthetic_dataset(
-            seed=config.seed, seasons=config.data.seasons, lag_hours=policy.completed_game_lag_hours
-        )
-        games, results, team_games = syn.games, syn.results, syn.team_games
+        if manifest is not None:  # pinned synthetic blobs (V2 receipts) instead of regeneration
+            frames = {e.dataset: pd.read_parquet(e.path) for e in manifest.entries}
+            games = frames["synthetic_games"].copy()
+            results = frames["synthetic_results"].copy()
+            team_games = frames["synthetic_team_games"].copy()
+            for frame in (games, team_games):
+                frame["kickoff_utc"] = pd.to_datetime(frame["kickoff_utc"], utc=True)
+            results["eligible_from_utc"] = pd.to_datetime(results["eligible_from_utc"], utc=True)
+            source_hashes = manifest.file_hashes()
+        else:
+            syn = generate_synthetic_dataset(
+                seed=config.seed,
+                seasons=config.data.seasons,
+                lag_hours=policy.completed_game_lag_hours,
+            )
+            games, results, team_games = syn.games, syn.results, syn.team_games
+            source_hashes = {"synthetic": hash_frame(games)}
+        if seasons != config.data.season_list:
+            games = games[games["season"].isin(seasons)]
+            results = results[results["game_id"].isin(games["game_id"])]
+            team_games = team_games[team_games["season"].isin(seasons)]
         feats = build_features(games, team_games, policy, config.features)
         labels = build_labels(games, results, policy)
         return Dataset(
@@ -181,7 +198,7 @@ def prepare_dataset(
             feats,
             labels,
             pd.DataFrame(columns=["game_id", "season", "week", "reason", "detail"]),
-            {"synthetic": hash_frame(games)},
+            source_hashes,
             None,
             True,
             policy,
@@ -896,7 +913,15 @@ def forecast_bundle_dir(config: ExperimentConfig, forecast_season: int) -> Path:
 
 
 def fit_forecast_bundles(
-    config: ExperimentConfig, through_season: int, *, offline: bool
+    config: ExperimentConfig,
+    through_season: int,
+    *,
+    offline: bool,
+    fit_time: pd.Timestamp | None = None,
+    source_manifest: SourceManifest | None = None,
+    out_dir: Path | None = None,
+    execution_contract: dict[str, Any] | None = None,
+    extra_specs: list[FitSpec] | None = None,
 ) -> tuple[RunManifest, dict[str, Path]]:
     """Fit B0 and M1 on eligible completed seasons through ``through_season`` for the next one.
 
@@ -906,12 +931,13 @@ def fit_forecast_bundles(
         raise InvalidInputError("fit requires model.selected_alpha from the development decision")
     started = time.time()
     seasons = list(range(config.data.seasons[0], through_season + 1))
-    dataset = prepare_dataset(config, offline=offline, seasons=seasons)
+    dataset = prepare_dataset(config, offline=offline, seasons=seasons, manifest=source_manifest)
     forecast_season = through_season + 1
-    specs = model_variants(config, candidates=False)
-    out_dir = forecast_bundle_dir(config, forecast_season)
+    specs = model_variants(config, candidates=False) + list(extra_specs or [])
+    out_dir = out_dir or forecast_bundle_dir(config, forecast_season)
     paths: dict[str, Path] = {}
-    fit_time = pd.Timestamp(utc_now())
+    fit_time = pd.Timestamp(fit_time) if fit_time is not None else pd.Timestamp(utc_now())
+    source_manifest_hash = hash_json(dataset.source_hashes)
     labeled = _labeled_rows(dataset)
     train_all = labeled[
         labeled["season"].isin(training_seasons(forecast_season, config.model.train_start_season))
@@ -948,8 +974,18 @@ def fit_forecast_bundles(
                 f"fit through season {through_season} for {forecast_season} forecasting",
                 f"fit_time_utc={iso_utc(fit_time.to_pydatetime())}",
                 f"training_rows_dropped_unavailable={dropped}",
+                f"training_source_manifest_hash={source_manifest_hash}",
+                "training_evidence_mode="
+                + str(
+                    (execution_contract or {}).get(
+                        "training_evidence_mode", "retrospective_reconstruction"
+                    )
+                ),
             ],
+            execution_contract=execution_contract,
         )
+        # creation time is the fit time (injected clock in demos/tests, wall clock otherwise)
+        bundle = bundle.model_copy(update={"created_at_utc": iso_utc(fit_time.to_pydatetime())})
         paths[spec.model_id] = bundle.save(out_dir / f"{spec.model_id}.json")
     registry = RunRegistry(config.run.artifacts_dir)
     run_id = new_run_id("fit")
