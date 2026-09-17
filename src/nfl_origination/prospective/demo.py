@@ -152,10 +152,31 @@ def run_demo_v2(
     # 2. bundles at t0 (training on completed seasons observed now) and epoch freeze
     clock.advance(timedelta(minutes=5))
     paths = fit_prospective_bundles(config, clock=clock, through_season=last - 1)
-    challenger_path = None
-    for model_id, path in paths.items():
-        if model_id.startswith("KN_"):
-            challenger_path = path
+    # synthetic research decision: run the bounded experiment on the synthetic seasons and
+    # fit the selected candidate (if any) as the challenger role
+    from nfl_origination.evaluation.v2 import research_v2
+    from nfl_origination.prospective.runner import fit_challenger_bundle
+
+    research_cfg = config.model_copy(
+        update={"data": config.data.model_copy(update={"mode": "historical_reconstruction"})}
+    )
+    research = research_v2(research_cfg, clock=clock)
+    decision = {**research["decision"], "run_id": research["run_id"]}
+    if decision.get("model_decision") == "retain_v1" and decision.get("selected_candidate"):
+        # the demo still exercises the challenger role as a labeled shadow (synthetic only)
+        decision = {**decision, "model_decision": "shadow_for_demo"}
+    challenger_path = fit_challenger_bundle(
+        config,
+        base_bundle_path=paths[v2.models.champion_model_id],
+        through_season=last - 1,
+        clock=clock,
+        decision=decision,
+    )
+    log["research"] = {
+        "run_id": research["run_id"],
+        "decision": research["decision"]["model_decision"],
+        "selected": research["decision"]["selected_candidate"],
+    }
     clock.advance(timedelta(minutes=5))
     epoch = freeze_epoch(
         config,

@@ -753,8 +753,13 @@ def resolve_default_bundles(
 ) -> tuple[Path, Path | None]:
     """Default champion/challenger bundle paths for the next season under the V2 artifacts root."""
     v2 = config.require_v2()
-    season = config.data.seasons[1] + 1
-    root = v2.storage.artifacts_dir / "models" / f"forecast_{season}"
+    models_dir = v2.storage.artifacts_dir / "models"
+    candidates = sorted(models_dir.glob("forecast_*")) if models_dir.exists() else []
+    if not candidates:
+        raise MissingDataError(
+            f"no fitted V2 bundles under {models_dir}; run `fit` with this config"
+        )
+    root = candidates[-1]  # the most recently fitted forecast season
     champ = champion or (root / f"{v2.models.champion_model_id}.json")
     if not champ.exists():
         raise MissingDataError(
@@ -826,3 +831,106 @@ def fit_prospective_bundles(
         extra_specs=extra_specs,
     )
     return paths
+
+
+def fit_challenger_bundle(
+    config: ExperimentConfig,
+    *,
+    base_bundle_path: Path,
+    through_season: int,
+    clock: Clock | None = None,
+    decision: dict[str, Any] | None = None,
+) -> Path | None:
+    """Wrap the fitted champion with the research-selected tilt, calibrated on prior OOF seasons.
+
+    Returns None (and fits nothing) when the decision retains V1 or no decision exists; the
+    identity candidate is only used when the decision explicitly selected it.
+    """
+    from nfl_origination.evaluation.v2 import _base_distributions, calibration_pool
+    from nfl_origination.experiment import prepare_dataset
+    from nfl_origination.models.key_number import (
+        build_challenger_bundle,
+        fit_theta,
+        identity_fit,
+    )
+    from nfl_origination.models.ridge import FitSpec
+
+    v2 = config.require_v2()
+    clock = clock or SystemClock()
+    if decision is None:
+        return None
+    selected = decision.get("selected_candidate")
+    if not selected or decision.get("model_decision") == "retain_v1":
+        return None
+    base = ModelBundle.load(base_bundle_path)
+    training_config = config.model_copy(
+        update={"data": config.data.model_copy(update={"mode": "historical_reconstruction"})}
+    )
+    seasons = list(range(config.data.seasons[0], through_season + 1))
+    manifest = None
+    if config.data.source == "synthetic":
+        manifest = manifest_as_of(
+            v2.storage.receipts_cache_dir,
+            seasons,
+            clock.now(),
+            allow_synthetic=True,
+            targets=[(d, None) for d in SYNTHETIC_DATASETS],
+        )
+    else:
+        manifest = manifest_as_of(v2.storage.receipts_cache_dir, seasons, clock.now())
+    dataset = prepare_dataset(training_config, offline=True, seasons=seasons, manifest=manifest)
+    spec = FitSpec("ridge_score", "full", float(v2.models.score_alpha), config.seed)
+    cal_seasons = list(range(config.model.residual_first_season, through_season + 1))
+    base_by_season = _base_distributions(training_config, dataset, spec, cal_seasons)
+    examples, pool = calibration_pool(
+        base_by_season,
+        through_season + 1,
+        max_seasons=v2.challenger.max_calibration_seasons,
+        min_games=v2.challenger.min_calibration_games,
+    )
+    if selected == "identity":
+        fit = identity_fit(pool["n_games"], pool["seasons"], pool["game_ids_hash"])
+        model_id = "KN_identity"
+    else:
+        lam = float(decision["selected_lambda"])
+        fit = fit_theta(
+            examples,
+            lam,
+            bound=v2.challenger.bound,
+            seasons=pool["seasons"],
+            game_ids_hash=pool["game_ids_hash"],
+            min_games=v2.challenger.min_calibration_games,
+        )
+        if fit.status == "failed":
+            raise ModelValidationError(f"challenger fit failed: {fit.message}")
+        model_id = f"KN_lambda{lam:g}"
+    bundle = build_challenger_bundle(
+        base,
+        fit,
+        model_id=model_id,
+        calibration={
+            **pool,
+            "decision_ref": decision.get("run_id"),
+            "fit_time_utc": iso(clock.now()),
+        },
+    )
+    bundle = bundle.model_copy(update={"created_at_utc": iso(clock.now())})
+    path = base_bundle_path.with_name(f"{model_id}.json")
+    bundle.save(path)
+    return path
+
+
+def load_decision(config: ExperimentConfig) -> dict[str, Any] | None:
+    """The research decision record referenced by v2.models.challenger_decision_ref."""
+    from nfl_origination.provenance import read_json
+
+    v2 = config.require_v2()
+    ref = v2.models.challenger_decision_ref
+    if not ref:
+        return None
+    path = v2.storage.artifacts_dir / "research" / "runs" / ref / "decision_record.json"
+    if not path.exists():
+        raise MissingDataError(f"challenger decision record not found: {path}")
+    decision = dict(read_json(path))
+    decision["run_id"] = ref
+    return decision

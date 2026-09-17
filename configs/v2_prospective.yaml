@@ -1,4 +1,4 @@
-# V2 v2_prospective configuration (see V2_SPEC.md). Config schema_version is the config contract;
+# V2 prospective configuration (see V2_SPEC.md). Config schema_version is the config contract;
 # artifact schema/feature versions live in code (schemas.py).
 schema_version: 1
 seed: 42
@@ -73,8 +73,9 @@ v2:
     synthetic: false
   models:
     champion_model_id: M1_ridge_alpha100
-    challenger_decision_ref: null
+    challenger_decision_ref: v2research-20260917T161131Z-e7a346
     score_alpha: 100
+    challenger_model_id: KN_lambda0.1
   horizon:
     target_hours_before_kickoff: 24
     window_minutes: 5

@@ -72,6 +72,19 @@ The statistical core uses Python, pandas/NumPy, scikit-learn, and SciPy. Artifac
 and JSON, with DuckDB views for inspection. Typer provides the CLI; Streamlit provides the UI.
 Dependencies are pinned in `uv.lock`.
 
+## V2 (prospective collection, market benchmarks, distribution challenger)
+
+V2 adds immutable source receipts with as-of version selection, an optional Odds API adapter,
+a frozen prospective epoch with a one-shot `prospective-tick`, an immutable forecast/decision
+ledger, aligned market benchmarks, and a bounded four-parameter key-number challenger. See
+`V2_SPEC.md`, `docs/v2_operations.md`, `docs/v2_model_card.md` and `V2_IMPLEMENTATION_RECAP.md`.
+
+```bash
+NFL_ORIGINATION_BLOCK_NETWORK=1 uv run nfl-origination demo-v2 --config configs/v2_demo.yaml --offline
+uv run nfl-origination research-v2 --config configs/v2_research.yaml --offline
+uv run nfl-origination prospective-tick --config configs/v2_prospective.yaml --offline
+```
+
 ## Quickstart: offline demo
 
 Requirements: `uv` and Python 3.12, on macOS or Linux. Run commands from the repository root.

@@ -49,6 +49,10 @@ src = ["src", "tests"]
 select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF"]
 ignore = ["RUF012", "B008", "SIM108", "N803", "N806", "RUF001", "RUF002", "RUF003"]
 
+[tool.ruff.lint.per-file-ignores]
+# presentation strings in the read-only dashboard
+"src/nfl_origination/dashboard/app.py" = ["E501"]
+
 [tool.mypy]
 python_version = "3.12"
 files = ["src/nfl_origination"]

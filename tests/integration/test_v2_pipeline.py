@@ -30,12 +30,12 @@ def _demo_config(tmp_path: Path) -> Path:
         "receipts_cache_dir": str(tmp_path / "raw"),
         "odds_dir": str(tmp_path / "odds"),
     }
-    raw["data"]["seasons"] = [2010, 2018]
-    raw["v2"]["challenger"]["development_seasons"] = [2017]
-    raw["v2"]["challenger"]["retrospective_check_seasons"] = [2018]
-    raw["evaluation"]["development_seasons"] = [2017]
-    raw["evaluation"]["confirmation_season"] = 2018
-    raw["evaluation"]["holdout_season"] = 2019
+    raw["data"]["seasons"] = [2010, 2021]
+    raw["v2"]["challenger"]["development_seasons"] = [2020]
+    raw["v2"]["challenger"]["retrospective_check_seasons"] = [2021]
+    raw["evaluation"]["development_seasons"] = [2020]
+    raw["evaluation"]["confirmation_season"] = 2021
+    raw["evaluation"]["holdout_season"] = 2022
     path = tmp_path / "v2_demo.yaml"
     path.write_text(yaml.safe_dump(raw))
     return path
@@ -45,10 +45,10 @@ def _demo_config(tmp_path: Path) -> Path:
 def demo_runs(tmp_path_factory):
     base = tmp_path_factory.mktemp("v2")
     cfg = load_config(_demo_config(base))
-    first = run_demo_v2(cfg, clock=FixedClock("2018-08-01T00:00:00Z"))
+    first = run_demo_v2(cfg, clock=FixedClock("2021-08-01T00:00:00Z"))
     second_base = tmp_path_factory.mktemp("v2b")
     cfg2 = load_config(_demo_config(second_base))
-    second = run_demo_v2(cfg2, clock=FixedClock("2018-08-01T00:00:00Z"))
+    second = run_demo_v2(cfg2, clock=FixedClock("2021-08-01T00:00:00Z"))
     return cfg, first, cfg2, second
 
 
@@ -81,9 +81,9 @@ def test_two_runs_are_deterministic_and_records_idempotent(demo_runs):
     cfg, first, cfg2, second = demo_runs
     l1 = Ledger(cfg.v2.storage.artifacts_dir, first["protocol_id"])
     l2 = Ledger(cfg2.v2.storage.artifacts_dir, second["protocol_id"])
-    f1 = {r.game_id: r for r, _ in l1.list_forecasts()}
-    f2 = {r.game_id: r for r, _ in l2.list_forecasts()}
-    assert set(f1) == set(f2)
+    f1 = {(r.game_id, r.role): r for r, _ in l1.list_forecasts()}
+    f2 = {(r.game_id, r.role): r for r, _ in l2.list_forecasts()}
+    assert set(f1) == set(f2) and {k[1] for k in f1} == {"champion", "challenger"}
     for gid in f1:
         assert abs(f1[gid].p_home_win - f2[gid].p_home_win) <= 1e-8
         assert f1[gid].fair_home_handicap == f2[gid].fair_home_handicap

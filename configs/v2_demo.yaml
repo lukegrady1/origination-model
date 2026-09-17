@@ -9,7 +9,7 @@ run:
 data:
   seasons:
   - 2010
-  - 2020
+  - 2021
   game_type: REG
   mode: recorded_asof
   completed_game_lag_hours: 48
@@ -45,9 +45,9 @@ distribution:
   max_omitted_mass: 1.0e-08
 evaluation:
   development_seasons:
-  - 2018
-  confirmation_season: 2019
-  holdout_season: 2020
+  - 2020
+  confirmation_season: 2021
+  holdout_season: 2022
   bootstrap_replicates: 1000
   ablation: false
 market:
@@ -72,9 +72,9 @@ v2:
     min_calibration_games: 250
     max_calibration_seasons: 3
     development_seasons:
-    - 2018
+    - 2020
     retrospective_check_seasons:
-    - 2019
+    - 2021
   market:
     enabled: true
     provider: csv

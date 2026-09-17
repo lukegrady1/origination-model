@@ -235,10 +235,38 @@ def fit(
     offline: OfflineOpt = True,
     set_: SetOpt = None,
 ) -> None:
-    """Fit the separate next-season forecasting bundles (B0 and M1)."""
+    """Fit the separate next-season forecasting bundles (B0 and M1; V2 adds the challenger)."""
     from nfl_origination.experiment import fit_forecast_bundles
 
     cfg = _load(config, set_)
+    if cfg.v2 is not None:
+        from nfl_origination.prospective.clock import SystemClock
+        from nfl_origination.prospective.runner import (
+            fit_challenger_bundle,
+            fit_prospective_bundles,
+            load_decision,
+        )
+
+        clock = SystemClock()
+        paths = _run(fit_prospective_bundles, cfg, clock=clock, through_season=through_season)
+        decision = _run(load_decision, cfg)
+        champion = paths[cfg.v2.models.champion_model_id]
+        chal = _run(
+            fit_challenger_bundle,
+            cfg,
+            base_bundle_path=champion,
+            through_season=through_season,
+            clock=clock,
+            decision=decision,
+        )
+        _echo_json(
+            {
+                "bundles": {k: str(v) for k, v in paths.items()},
+                "challenger": None if chal is None else str(chal),
+                "decision": None if decision is None else decision.get("model_decision"),
+            }
+        )
+        return
     manifest, paths = _run(fit_forecast_bundles, cfg, through_season, offline=offline)
     _echo_json({"run_id": manifest.run_id, "bundles": {k: str(v) for k, v in paths.items()}})
 
@@ -692,3 +720,62 @@ def demo_v2_cmd(
         typer.echo("demo-v2 always runs offline")
     log = _run(run_demo_v2, cfg)
     _echo_json({k: v for k, v in log.items() if k != "steps"})
+
+
+@app.command("research-v2")
+def research_v2_cmd(
+    config: ConfigOpt = Path("configs/v2_research.yaml"),
+    offline: OfflineOpt = True,
+) -> None:
+    """Retrospective distribution experiment on cached data; writes a decision record."""
+    from nfl_origination.evaluation.v2 import research_v2
+
+    cfg = _load(config, None)
+    if not offline:
+        typer.echo("research-v2 reads the cache only; --offline is implied")
+    metrics = _run(research_v2, cfg)
+    dec = metrics["decision"]
+    _echo_json(
+        {
+            "run_id": metrics["run_id"],
+            "run_dir": metrics["run_dir"],
+            "selected_candidate": dec["selected_candidate"],
+            "model_decision": dec["model_decision"],
+            "development": {
+                k: {
+                    kk: v.get(kk)
+                    for kk in ("n_games", "crps_margin", "crps_total", "logloss_3way", "key_gap")
+                }
+                for k, v in metrics["development_metrics"].items()
+            },
+            "exclusions": len(metrics["exclusions"]),
+        }
+    )
+
+
+@app.command("report-prospective")
+def report_prospective_cmd(
+    config: ConfigOpt = Path("configs/v2_prospective.yaml"),
+    protocol_id: ProtocolOpt = None,
+) -> None:
+    """Evaluate committed forecasts against outcome versions as of now; write the report."""
+    from nfl_origination.evaluation.v2 import prospective_report
+    from nfl_origination.prospective.clock import SystemClock
+
+    cfg = _load(config, None)
+    report = _run(prospective_report, cfg, clock=SystemClock(), protocol_id=protocol_id)
+    _echo_json(
+        {
+            k: report[k]
+            for k in (
+                "protocol_id",
+                "results_as_of_utc",
+                "coverage",
+                "model_metrics",
+                "review_gate",
+                "model_decision",
+                "integrity",
+                "report_path",
+            )
+        }
+    )
