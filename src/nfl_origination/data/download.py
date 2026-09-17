@@ -9,6 +9,7 @@ mode can reason about when a snapshot was first observed.
 from __future__ import annotations
 
 import os
+import secrets
 import time
 from pathlib import Path
 from typing import Any
@@ -52,6 +53,8 @@ class SourceEntry(BaseModel):
     columns: list[str]
     source_version: str | None = None
     attribution: str = ATTRIBUTION
+    receipt_id: str | None = None
+    provenance_quality: str | None = None
 
 
 class SourceManifest(BaseModel):
@@ -137,8 +140,10 @@ def _refresh_entry(
     entry_dir = _entry_dir(cache_dir, dataset, season)
     entry_dir.mkdir(parents=True, exist_ok=True)
     ext = ".parquet" if url.endswith(".parquet") else ".csv"
-    tmp = entry_dir / f"download-{os.getpid()}{ext}"
+    tmp = entry_dir / f"download-{os.getpid()}-{secrets.token_hex(4)}{ext}"
+    request_started = iso_utc(utc_now())
     fetch_to_file(url, tmp, timeout=timeout, retries=retries, session=session)
+    observed_at = iso_utc(utc_now())  # complete response received
     digest = sha256_file(tmp)
     final = entry_dir / f"{digest}{ext}"
     now = iso_utc(utc_now())
@@ -174,7 +179,25 @@ def _refresh_entry(
     with history_path.open("a") as fh:
         fh.write(entry.model_dump_json() + "\n")
     write_json(entry_dir / "entry.json", entry.model_dump())
-    return entry
+    # V2: immutable per-observation receipt (blob stored once per hash, receipt per observation)
+    from nfl_origination.data.snapshots import record_observation
+
+    assert observed_at is not None
+    receipt = record_observation(
+        cache_dir,
+        dataset=dataset,
+        season=season,
+        blob_path=final,
+        sha256=digest,
+        request_started_at_utc=request_started,
+        observed_at_utc=observed_at,
+        source_url=url,
+        row_count=rows,
+        columns=cols,
+    )
+    return entry.model_copy(
+        update={"receipt_id": receipt.receipt_id, "provenance_quality": "observed"}
+    )
 
 
 def ingest(

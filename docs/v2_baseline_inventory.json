@@ -1,0 +1,238 @@
+{
+ "data_raw_entries": {
+  "pbp/2010": {
+   "downloaded_at_utc": "2026-09-16T17:14:34.082228Z",
+   "first_observed_at_utc": "2026-09-16T17:14:34.082228Z",
+   "rows": 46892,
+   "sha256": "d2ef9c407319719910ad8de8c4c1b88f0ea945ffb3f78f48ef32fa3ed3a7573b"
+  },
+  "pbp/2011": {
+   "downloaded_at_utc": "2026-09-16T17:14:39.297760Z",
+   "first_observed_at_utc": "2026-09-16T17:14:39.297760Z",
+   "rows": 47448,
+   "sha256": "c54753b8137b88dab260489b1462cbf1309c3d11741eb8d10e5f1b0a9b8795b1"
+  },
+  "pbp/2012": {
+   "downloaded_at_utc": "2026-09-16T17:14:44.292687Z",
+   "first_observed_at_utc": "2026-09-16T17:14:44.292687Z",
+   "rows": 47834,
+   "sha256": "447b90789104aac70427ec9d3b51df7247234029d0ecabd269279369b1cc6278"
+  },
+  "pbp/2013": {
+   "downloaded_at_utc": "2026-09-16T17:14:49.459602Z",
+   "first_observed_at_utc": "2026-09-16T17:14:49.459602Z",
+   "rows": 48158,
+   "sha256": "f454605a1983b3946baf0ffadf3a0b9f5e04735c4b84732e0483f2049a780d00"
+  },
+  "pbp/2014": {
+   "downloaded_at_utc": "2026-09-16T17:14:54.624266Z",
+   "first_observed_at_utc": "2026-09-16T17:14:54.624266Z",
+   "rows": 47629,
+   "sha256": "54c01408d8f0ff9e013a4ea51428b91d610101f72545d082e932f5710e2fb4f7"
+  },
+  "pbp/2015": {
+   "downloaded_at_utc": "2026-09-16T17:14:59.838313Z",
+   "first_observed_at_utc": "2026-09-16T17:14:59.838313Z",
+   "rows": 48122,
+   "sha256": "01b5ae7d06633a2e66b418404461a3d4ff055ad2f3a87d453cebcc8d3fda7ed9"
+  },
+  "pbp/2016": {
+   "downloaded_at_utc": "2026-09-16T17:15:04.750653Z",
+   "first_observed_at_utc": "2026-09-16T17:15:04.750653Z",
+   "rows": 47651,
+   "sha256": "95eba04e2145e3c1c8ca502f2a3a76cfb0a5990680c3fb480f02a74a45f54a3b"
+  },
+  "pbp/2017": {
+   "downloaded_at_utc": "2026-09-16T17:15:09.851057Z",
+   "first_observed_at_utc": "2026-09-16T17:15:09.851057Z",
+   "rows": 47245,
+   "sha256": "84eacd963c1fdd45965f6222c62e9329a7f3412f029d92c1ac5e34a1bb4d3710"
+  },
+  "pbp/2018": {
+   "downloaded_at_utc": "2026-09-16T17:15:14.976768Z",
+   "first_observed_at_utc": "2026-09-16T17:15:14.976768Z",
+   "rows": 47109,
+   "sha256": "2e6f2dce7c7ebd46e985cabe0c17eb72b39a77f98cb4478409294f50b5820150"
+  },
+  "pbp/2019": {
+   "downloaded_at_utc": "2026-09-16T17:15:20.024334Z",
+   "first_observed_at_utc": "2026-09-16T17:15:20.024334Z",
+   "rows": 47260,
+   "sha256": "60c3067017db2d28a78f66a79b657268be8578d9a5288e6a827efdcd7fe42540"
+  },
+  "pbp/2020": {
+   "downloaded_at_utc": "2026-09-16T17:15:25.051236Z",
+   "first_observed_at_utc": "2026-09-16T17:15:25.051236Z",
+   "rows": 47705,
+   "sha256": "8889f5d8782b5c5dce3c3644acdc0322b228a7e9cb13fa36cbac250e260e9f60"
+  },
+  "pbp/2021": {
+   "downloaded_at_utc": "2026-09-16T17:15:30.532837Z",
+   "first_observed_at_utc": "2026-09-16T17:15:30.532837Z",
+   "rows": 49922,
+   "sha256": "333ad34378e5339d5172717cc83378e908daf02c8699416ab3e17c2ec10f78d8"
+  },
+  "pbp/2022": {
+   "downloaded_at_utc": "2026-09-16T17:15:36.140032Z",
+   "first_observed_at_utc": "2026-09-16T17:15:36.140032Z",
+   "rows": 49434,
+   "sha256": "931121d8897779d7944e2a293e92ed8799c8e5cceef84096ac42339003fedc09"
+  },
+  "pbp/2023": {
+   "downloaded_at_utc": "2026-09-16T17:15:41.596316Z",
+   "first_observed_at_utc": "2026-09-16T17:15:41.596316Z",
+   "rows": 49665,
+   "sha256": "bd3484731408def6b0ec93225bba2bd7b2c65769ca707a2b9444d891abdc6776"
+  },
+  "pbp/2024": {
+   "downloaded_at_utc": "2026-09-16T17:15:47.411853Z",
+   "first_observed_at_utc": "2026-09-16T17:15:47.411853Z",
+   "rows": 49492,
+   "sha256": "3fd2896bc0b911b615142d2f1fabae54a4bbba5ab7b73b28187b118ef8af6a3b"
+  },
+  "pbp/2025": {
+   "downloaded_at_utc": "2026-09-16T17:15:52.714503Z",
+   "first_observed_at_utc": "2026-09-16T17:15:52.714503Z",
+   "rows": 48771,
+   "sha256": "c6ecedd6d678cc37ed316b23ef84ee1ec6abb69c514bb11868a7ebd5a367df29"
+  },
+  "pbp/2026": {
+   "downloaded_at_utc": "2026-09-16T17:15:53.655731Z",
+   "first_observed_at_utc": "2026-09-16T17:15:53.655731Z",
+   "rows": 2756,
+   "sha256": "e7567f9931b02ddafca608ff91ca8f6443a864a1a0d18aef4abe3f4fc49562bc"
+  },
+  "schedules/None": {
+   "downloaded_at_utc": "2026-09-16T17:14:29.108230Z",
+   "first_observed_at_utc": "2026-09-16T17:14:29.108230Z",
+   "rows": 7548,
+   "sha256": "fa6684321ed9d08ee7496dfa9a4d345e9445cba7e8842c42f383ad524dc442d0"
+  }
+ },
+ "models": {
+  "artifacts/models/forecast_2026/B0_league_baseline.json": "3327bdc6ec1a8d9abb686e9a941b2882b7bb95bdfb910742e25a79a03fe13949",
+  "artifacts/models/forecast_2026/M1_ridge_alpha100.json": "3d3f9ba1366c0c33e7b012b0e0cba68e6f63e6c8f79ee0188aec998953c7ec57",
+  "artifacts/models/forecast_2026/M1_ridge_epa_free_alpha100.json": "9c41a5da62ce60310533af707ab21769fb86fc08cb514e5a998d878b4c05043c"
+ },
+ "protocol": {
+  "artifacts/protocol/frozen_protocol.json": "d7b70fbc1449a063cf5d2d26b2f0d96b1e9a091ea5f688e2b96179c9a958fcfb"
+ },
+ "reports_final": {
+  "reports/final/confirmation/charts/interval_coverage.png": "78015d734bc599044ed2fff7c081ec48acf8bc904b95816955ff32b60472cfb4",
+  "reports/final/confirmation/charts/key_numbers.png": "c382ca002dc2fba882ce976a8ca2abdb57f1c1a8908c984e5267af1b22a47dad",
+  "reports/final/confirmation/charts/paired_differences.png": "7c91aea5f394fa123c6cbca5d20ea79472b83fb991d60f597c334474ba7feeac",
+  "reports/final/confirmation/charts/reliability.png": "85f04e5b38b774136e8b015e220ac531cd25489c464a119858699bd14dcf0d5b",
+  "reports/final/confirmation/charts/season_score_mae.png": "13d03482c86232c31dbe9da336f6567a1f708a32a11e915597ae3f116a12fad9",
+  "reports/final/confirmation/manifest.json": "d354ea3c3848487a64bd628eb84c32ca12d353f5516f6576daf3463c28b7291d",
+  "reports/final/confirmation/metrics.json": "380c4b7da61daa69f1242c86779078399e1882407e3dbb56a30b5e0d38765aff",
+  "reports/final/confirmation/predictions.csv": "0bf041b3da39e8939f980dcf03892eb4bb6d54a44e8ff036b46a04f159972855",
+  "reports/final/confirmation/report.md": "b546a0ee8893b8c2b1c0e8f8d806590560df598052b24fc7a2226e9fd48dccc5",
+  "reports/final/development/charts/interval_coverage.png": "214e16082585b4369ec07ac8d0d6bbbbb107999d938a8df6170017f861cafeb6",
+  "reports/final/development/charts/key_numbers.png": "bb7cf695d54ed43a5f320c26ad5838ccb83d23d44652c3aa07a1496f2dcfde94",
+  "reports/final/development/charts/paired_differences.png": "e1e0c0c4a45e2e26fc0f651859bff4f4eb8c696d40da0bc4a8269d9191fc1e01",
+  "reports/final/development/charts/reliability.png": "6a090bb382ed5822741fad12929cc1cf1fe86f707b216f558f2c9e1b101a2994",
+  "reports/final/development/charts/season_score_mae.png": "f822cab42250bb1f6670fdaf60e36240a047775d6b9c3dcfe4894f91b251b361",
+  "reports/final/development/decision_record.json": "757fc020e0dffa3e13b7930af1271d3da3f4bfdd012a3db8614dc47c7a537970",
+  "reports/final/development/manifest.json": "9e1c1cd48a125efccde066e00229373ba76636c2965597d2377278e1a1fdc9bc",
+  "reports/final/development/metrics.json": "3e81c13aeedf0be15573376db09e1b21528f4ab6af86416efee041fa51245699",
+  "reports/final/development/predictions.csv": "6a1d76328b30abfc3cda614ebec06d575eea9ec09a9a919f020a6b67cf2a4cf3",
+  "reports/final/development/report.md": "9e5285a9ff4c57fcd16b431e5401dc722ae79c54f6d6e90b4dc7f9b9fa7d1740",
+  "reports/final/forecast_2026_week1_reconstruction/manifest.json": "1630abd8f658ff11f759c5a9fb0e6773c24544a3242775fdae775b38cab83061",
+  "reports/final/forecast_2026_week1_reconstruction/report.md": "ed9d9fe4df2c4b02cb3ea6304f3d622ab17bc23d522c7bdd9cdae9997dddf954",
+  "reports/final/forecast_2026_week1_reconstruction/slate.csv": "0094a445c3a87106b9d933c8cce0cea80bed3252eb1a7128e63f5dfd94f74428",
+  "reports/final/forecast_2026_week3_live/manifest.json": "da62e27b0f555e60588c8910203c9f3d6c4b00104bfabcc32168debfba94c52e",
+  "reports/final/forecast_2026_week3_live/slate.csv": "8fbe6c7fb5bc96c2fa955bf73fc5f744c78efa834db93ff6c39b54daec3e3c02",
+  "reports/final/frozen_protocol.json": "d7b70fbc1449a063cf5d2d26b2f0d96b1e9a091ea5f688e2b96179c9a958fcfb",
+  "reports/final/holdout/charts/interval_coverage.png": "6f6f6d1985412cb10af5f23c27738acedc75e554847f6b12b8073af6054cf2da",
+  "reports/final/holdout/charts/key_numbers.png": "aa5ed0b7712ac7fab1429a29d3643a251cfc6cdf25a0a28df6f01780bc794f8e",
+  "reports/final/holdout/charts/paired_differences.png": "e228c3d50ad2cf9a0ee5ee115b412efecb7d024e487eec67168d5797522bcb39",
+  "reports/final/holdout/charts/reliability.png": "4c1a342ac874bbe4fcf3880a1368e0dea0c02b2e4e19a28f7923a2640d429a57",
+  "reports/final/holdout/charts/season_score_mae.png": "1e4f1f21b4d134c5d53722c04013f44d602efec6d735910ee34603cf83456789",
+  "reports/final/holdout/manifest.json": "38f15d7e9949c9393564ccc1a3573d93de4adbebe6af3680ca87bcd614759b50",
+  "reports/final/holdout/metrics.json": "05bb22b7ce89c3895fdc972ddd163e8249fe2ae715c023f51f880257363176b0",
+  "reports/final/holdout/predictions.csv": "059af2cfe1e9b5cad13bd3c61a8abd535bbdc48a5724ba55268ca0a845afa3b1",
+  "reports/final/holdout/report.md": "0739f28cf78d92f7d13634e5c4dcd745c1a365af1391962ee342802fa6b44a02"
+ },
+ "runs": {
+  "confirmation-20260916T173933Z-48f95d": {
+   "feature_version": "1",
+   "git_dirty": true,
+   "kind": "confirmation",
+   "manifest_sha256": "d354ea3c3848487a64bd628eb84c32ca12d353f5516f6576daf3463c28b7291d",
+   "output_hashes": {
+    "metrics.json": "380c4b7da61daa69f1242c86779078399e1882407e3dbb56a30b5e0d38765aff",
+    "predictions.parquet": "a45f80d7e276723930c8a807546a8cd2cca04424028757c05a62218780f05dfc",
+    "predictions_B0_league_baseline.parquet": "639a2f268601539b86f1896a84e5630445ed47f61090191ea4ef0c07ae364f83",
+    "predictions_M1_ridge_alpha100.parquet": "a45f80d7e276723930c8a807546a8cd2cca04424028757c05a62218780f05dfc",
+    "predictions_M1_ridge_epa_free_alpha100.parquet": "a6937661c0aa2d1338a47d64bd1a0dae667c3c319c006f2501e4b27dc5d6a7da"
+   },
+   "schema_version": 1
+  },
+  "development-20260916T173324Z-b71c52": {
+   "feature_version": "1",
+   "git_dirty": true,
+   "kind": "development",
+   "manifest_sha256": "9e1c1cd48a125efccde066e00229373ba76636c2965597d2377278e1a1fdc9bc",
+   "output_hashes": {
+    "metrics.json": "3e81c13aeedf0be15573376db09e1b21528f4ab6af86416efee041fa51245699",
+    "predictions.parquet": "2ea9cebc1033a69db37205f9322c374d60a0a667bdc1d5a27db4aff3af534bcd",
+    "predictions_B0_league_baseline.parquet": "e535e23b0658477745f6206bb6539ae97f28440fd4b525d5c71766ecddffe66f",
+    "predictions_M1_ridge_alpha1.parquet": "7c79d73d271de12d5a82021b11d36415ecc391e912090bd2544e44dcc90bd315",
+    "predictions_M1_ridge_alpha10.parquet": "d37d7fe28868f3cc971aec53ed88b67503297f8dc42d322460486587f5904fc7",
+    "predictions_M1_ridge_alpha100.parquet": "2ea9cebc1033a69db37205f9322c374d60a0a667bdc1d5a27db4aff3af534bcd",
+    "predictions_M1_ridge_alpha1000.parquet": "0ee1fe929d3c4d532e9840a743a54714943629478ed87a00b6e2fcb9241917d5",
+    "predictions_M1_ridge_epa_free_alpha1.parquet": "029db5925748bca645584b3fdd02fc7bfdffd086f7f52cfeb564e5ceabc97b8f",
+    "predictions_M1_ridge_epa_free_alpha10.parquet": "af5d06c81a05c425e76f703e2583c9f705a4383420c8be9c62adc0bb4e1b3fe5",
+    "predictions_M1_ridge_epa_free_alpha100.parquet": "76814c1c0b38778d824267363f844b37fca25a3eea6001dedb128c3fcd991c94",
+    "predictions_M1_ridge_epa_free_alpha1000.parquet": "5c1baa893cb13b6da1a37771e8d614acb6a5e3b261ee3d022506094d2be12f97"
+   },
+   "schema_version": 1
+  },
+  "fit-20260916T185415Z-b671ea": {
+   "feature_version": "2",
+   "git_dirty": true,
+   "kind": "fit",
+   "manifest_sha256": "6187f8847f994b4f0b52989ed4e35d8ad5e2e6e70612bd43ead510aa34d7cbff",
+   "output_hashes": {
+    "B0_league_baseline": "3327bdc6ec1a8d9abb686e9a941b2882b7bb95bdfb910742e25a79a03fe13949",
+    "M1_ridge_alpha100": "3d3f9ba1366c0c33e7b012b0e0cba68e6f63e6c8f79ee0188aec998953c7ec57",
+    "M1_ridge_epa_free_alpha100": "9c41a5da62ce60310533af707ab21769fb86fc08cb514e5a998d878b4c05043c"
+   },
+   "schema_version": 2
+  },
+  "forecast-20260916T185416Z-bfda4c": {
+   "feature_version": "2",
+   "git_dirty": true,
+   "kind": "forecast",
+   "manifest_sha256": "da62e27b0f555e60588c8910203c9f3d6c4b00104bfabcc32168debfba94c52e",
+   "output_hashes": {
+    "predictions.parquet": "e7fd4722d253e1e1330856b2ae782b257ea7a60f7193f8ad7622de5de9e71114"
+   },
+   "schema_version": 2
+  },
+  "forecast-20260916T185418Z-1704bd": {
+   "feature_version": "2",
+   "git_dirty": true,
+   "kind": "forecast",
+   "manifest_sha256": "1630abd8f658ff11f759c5a9fb0e6773c24544a3242775fdae775b38cab83061",
+   "output_hashes": {
+    "predictions.parquet": "6cba27c2537cb7a1625695ecf4dc455e77cfa4fb2eb76bd40565503b24ee54f4"
+   },
+   "schema_version": 2
+  },
+  "holdout-20260916T175029Z-4385c4": {
+   "feature_version": "1",
+   "git_dirty": true,
+   "kind": "holdout",
+   "manifest_sha256": "38f15d7e9949c9393564ccc1a3573d93de4adbebe6af3680ca87bcd614759b50",
+   "output_hashes": {
+    "metrics.json": "05bb22b7ce89c3895fdc972ddd163e8249fe2ae715c023f51f880257363176b0",
+    "predictions.parquet": "8966861db081a90e84e4e339227fd3331ac523abff2db92b7868ca7e7a0b88d9",
+    "predictions_B0_league_baseline.parquet": "ecd582acff6c110ca40c4dc7810db370ef9d46c74570ffcbf92453f34e64684b",
+    "predictions_M1_ridge_alpha100.parquet": "8966861db081a90e84e4e339227fd3331ac523abff2db92b7868ca7e7a0b88d9",
+    "predictions_M1_ridge_epa_free_alpha100.parquet": "23024ecca21b20ceb61a0dc3750ab1acdabc8c362aa163061a72a19716fce18a"
+   },
+   "schema_version": 1
+  }
+ }
+}

@@ -128,6 +128,11 @@ def _feature_cache_key(
             f"{entry.dataset}/{entry.season or 'all'}": entry.first_observed_at_utc
             for entry in manifest.entries
         },
+        # V2: the selected source version identity (receipt) is part of the cache key
+        "receipts": {
+            f"{entry.dataset}/{entry.season or 'all'}": entry.receipt_id
+            for entry in manifest.entries
+        },
         "policy": policy_from_config(config).__dict__,
         "features": config.features.model_dump(),
         "feature_version": FEATURE_VERSION,
@@ -144,10 +149,24 @@ def prepare_dataset(
     seasons: list[int] | None = None,
     rebuild: bool = False,
     manifest: SourceManifest | None = None,
+    source_cutoff: pd.Timestamp | None = None,
 ) -> Dataset:
-    """Load or build everything the models need. Real data comes from the cache only."""
+    """Load or build everything the models need. Real data comes from the cache only.
+
+    With ``source_cutoff`` the source versions are pinned to the receipts observed at or before
+    that time (V2 as-of selection); otherwise the latest cached entries are used (research).
+    """
     policy = policy_from_config(config)
     seasons = seasons or config.data.season_list
+    if source_cutoff is not None and manifest is None:
+        from nfl_origination.data.snapshots import manifest_as_of
+
+        manifest = manifest_as_of(
+            config.data.cache_dir,
+            seasons,
+            source_cutoff,
+            allow_synthetic=bool(config.v2 and config.v2.evidence.synthetic),
+        )
     if config.data.source == "synthetic":
         syn = generate_synthetic_dataset(
             seed=config.seed, seasons=config.data.seasons, lag_hours=policy.completed_game_lag_hours

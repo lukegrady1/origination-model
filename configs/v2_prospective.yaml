@@ -1,0 +1,106 @@
+# V2 v2_prospective configuration (see V2_SPEC.md). Config schema_version is the config contract;
+# artifact schema/feature versions live in code (schemas.py).
+schema_version: 1
+seed: 42
+run:
+  kind: v2_prospective
+  label: v2_prospective
+  artifacts_dir: artifacts/v2
+  reports_dir: reports/v2
+data:
+  seasons:
+  - 2010
+  - 2026
+  game_type: REG
+  mode: recorded_asof
+  completed_game_lag_hours: 48
+forecast:
+  cutoff_hours_before_kickoff: 24
+features:
+  history_games: 16
+  half_life_games: 8
+  offseason_weight: 0.5
+  prior_seasons: 2
+  shrinkage_plays: 200
+  shrinkage_split_plays: 100
+  shrinkage_games: 4
+model:
+  family: ridge_score
+  alpha_candidates:
+  - 1
+  - 10
+  - 100
+  - 1000
+  selected_alpha: 100
+  ablation_selected_alpha: 100
+  train_start_season: 2012
+  residual_first_season: 2016
+  residual_window_seasons: 5
+  min_residual_games: 500
+  covariance_diagonal_shrinkage: 0.1
+distribution:
+  initial_max_score: 100
+  score_step: 25
+  hard_max_score: 250
+  max_omitted_mass: 1.0e-08
+evaluation:
+  development_seasons:
+  - 2018
+  - 2019
+  - 2020
+  - 2021
+  - 2022
+  - 2023
+  confirmation_season: 2024
+  holdout_season: 2025
+  bootstrap_replicates: 1000
+market:
+  enabled: false
+  bookmaker: null
+  max_quote_age_minutes: 60
+  min_ev: 0.03
+  stake_units: 1
+  max_selections_per_game: 1
+  moneyline_settlement_rule: two_way_tie_void
+v2:
+  storage:
+    artifacts_dir: artifacts/v2
+    reports_dir: reports/v2
+    receipts_cache_dir: data/raw
+    odds_dir: data/odds
+  evidence:
+    mode: observed_prospective
+    synthetic: false
+  models:
+    champion_model_id: M1_ridge_alpha100
+    challenger_decision_ref: null
+    score_alpha: 100
+  horizon:
+    target_hours_before_kickoff: 24
+    window_minutes: 5
+  sources:
+    completed_game_lag_hours: 48
+  market:
+    enabled: false
+    provider: the_odds_api
+    bookmaker: null
+    bookmakers: []
+    settlement_rules: {}
+    max_quote_age_minutes: 60
+  collection:
+    timeout_seconds: 20
+    max_attempts_per_request: 3
+    request_budget_per_invocation: 4
+    quota_reserve: 50
+  closing_proxy:
+    window_minutes: 30
+  paper:
+    min_ev: 0.03
+    stake_units: 1
+    max_selections_per_game_per_model: 1
+  evaluation:
+    bootstrap_replicates: 2000
+    seed: 42
+    min_blocks: 8
+    planned_review_games: 100
+    planned_review_blocks: 8

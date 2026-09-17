@@ -523,3 +523,45 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+@app.command("snapshot-inventory")
+def snapshot_inventory_cmd(
+    config: ConfigOpt = Path("configs/v2_prospective.yaml"),
+) -> None:
+    """Read-only inventory of source blobs, legacy V1 metadata and V2 observation receipts."""
+    from nfl_origination.data.snapshots import snapshot_inventory
+
+    cfg = _load(config, None)
+    v2 = _run(cfg.require_v2)
+    _echo_json(_run(snapshot_inventory, v2.storage.receipts_cache_dir))
+
+
+@app.command("migrate-snapshots")
+def migrate_snapshots_cmd(
+    config: ConfigOpt = Path("configs/v2_prospective.yaml"),
+    no_baseline: Annotated[
+        bool, typer.Option("--no-baseline", help="Skip the 'observed now' baseline receipts")
+    ] = False,
+) -> None:
+    """Additive, idempotent import of legacy V1 cache metadata into immutable receipts."""
+    from nfl_origination.data.snapshots import migrate_legacy
+    from nfl_origination.provenance import write_json
+
+    cfg = _load(config, None)
+    v2 = _run(cfg.require_v2)
+    report = _run(migrate_legacy, v2.storage.receipts_cache_dir, baseline=not no_baseline)
+    out = (
+        v2.storage.artifacts_dir
+        / "snapshots"
+        / f"migration_{report['at_utc'].replace(':', '')}.json"
+    )
+    write_json(out, report)
+    _echo_json(
+        {
+            "created": len(report["created"]),
+            "skipped_existing": report["skipped_existing"],
+            "report": str(out),
+            "receipts_by_quality": report["inventory"]["receipts_by_quality"],
+        }
+    )

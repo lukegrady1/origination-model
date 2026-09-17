@@ -1,0 +1,92 @@
+# V2 offline demo: SYNTHETIC seasons, controlled clock, no network, no credentials.
+schema_version: 1
+seed: 42
+run:
+  kind: v2_demo
+  label: v2_demo
+  artifacts_dir: artifacts/v2/demo
+  reports_dir: reports/v2/demo
+data:
+  seasons:
+  - 2010
+  - 2020
+  game_type: REG
+  mode: recorded_asof
+  completed_game_lag_hours: 48
+  source: synthetic
+forecast:
+  cutoff_hours_before_kickoff: 24
+features:
+  history_games: 16
+  half_life_games: 8
+  offseason_weight: 0.5
+  prior_seasons: 2
+  shrinkage_plays: 200
+  shrinkage_split_plays: 100
+  shrinkage_games: 4
+model:
+  family: ridge_score
+  alpha_candidates:
+  - 1
+  - 10
+  - 100
+  - 1000
+  selected_alpha: 100
+  train_start_season: 2012
+  residual_first_season: 2016
+  residual_window_seasons: 5
+  min_residual_games: 500
+  covariance_diagonal_shrinkage: 0.1
+  ablation_selected_alpha: null
+distribution:
+  initial_max_score: 100
+  score_step: 25
+  hard_max_score: 250
+  max_omitted_mass: 1.0e-08
+evaluation:
+  development_seasons:
+  - 2018
+  confirmation_season: 2019
+  holdout_season: 2020
+  bootstrap_replicates: 1000
+  ablation: false
+market:
+  enabled: false
+v2:
+  storage:
+    artifacts_dir: artifacts/v2/demo
+    reports_dir: reports/v2/demo
+    receipts_cache_dir: artifacts/v2/demo/raw
+    odds_dir: artifacts/v2/demo/odds
+  evidence:
+    mode: observed_prospective
+    synthetic: true
+  models:
+    champion_model_id: M1_ridge_alpha100
+    score_alpha: 100
+  challenger:
+    lambdas:
+    - 0.01
+    - 0.1
+    - 1.0
+    min_calibration_games: 250
+    max_calibration_seasons: 3
+    development_seasons:
+    - 2018
+    retrospective_check_seasons:
+    - 2019
+  market:
+    enabled: true
+    provider: csv
+    bookmaker: synthetic_book
+    bookmakers:
+    - synthetic_book
+    settlement_rules:
+      synthetic_book:
+        moneyline: two_way_tie_void
+        spread: push_refund
+        total: push_refund
+  evaluation:
+    bootstrap_replicates: 200
+    seed: 42
+    min_blocks: 8

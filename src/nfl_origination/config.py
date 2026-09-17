@@ -17,7 +17,17 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from nfl_origination.errors import InvalidInputError
 
 DataMode = Literal["historical_reconstruction", "recorded_asof"]
-RunKind = Literal["development", "confirmation", "holdout", "forecast", "fit", "demo"]
+RunKind = Literal[
+    "development",
+    "confirmation",
+    "holdout",
+    "forecast",
+    "fit",
+    "demo",
+    "v2_research",
+    "v2_prospective",
+    "v2_demo",
+]
 FeatureSet = Literal["full", "epa_free"]
 ModelFamily = Literal["ridge_score", "league_baseline"]
 
@@ -122,6 +132,141 @@ class MarketConfig(StrictModel):
     synthetic: bool = False
 
 
+# ---------------------------------------------------------------------------------------------
+# V2 (prospective collection, market benchmarks, distribution challenger)
+# ---------------------------------------------------------------------------------------------
+
+EvidenceMode = Literal["research_reconstruction", "observed_prospective"]
+
+
+class V2StorageConfig(StrictModel):
+    artifacts_dir: Path = Path("artifacts/v2")
+    reports_dir: Path = Path("reports/v2")
+    receipts_cache_dir: Path = Path("data/raw")
+    odds_dir: Path = Path("data/odds")
+
+
+class V2EvidenceConfig(StrictModel):
+    mode: EvidenceMode = "research_reconstruction"
+    synthetic: bool = False
+
+
+class V2ModelsConfig(StrictModel):
+    champion_model_id: str = "M1_ridge_alpha100"
+    champion_bundle_hash: str | None = None
+    challenger_decision_ref: str | None = None  # research run id holding the decision record
+    challenger_model_id: str | None = None
+    challenger_bundle_hash: str | None = None
+    score_alpha: float = 100.0
+
+
+class V2ChallengerConfig(StrictModel):
+    features: tuple[str, ...] = ("tie", "abs_margin_3", "abs_margin_7", "total_even")
+    lambdas: tuple[float, ...] = (0.01, 0.1, 1.0)
+    bound: float = 3.0
+    min_calibration_games: int = 250
+    max_calibration_seasons: int = 3
+    development_seasons: tuple[int, ...] = (2019, 2020, 2021, 2022, 2023)
+    retrospective_check_seasons: tuple[int, ...] = (2024, 2025)
+    crps_tie_tolerance: float = 1e-6
+    max_worse_fraction: float = 0.01
+
+
+class V2HorizonConfig(StrictModel):
+    target_hours_before_kickoff: float = 24.0
+    window_minutes: float = 5.0
+    horizon_policy_id: str = "kickoff_minus_24h_pm5m"
+
+
+class V2SourcesConfig(StrictModel):
+    completed_game_lag_hours: float = 48.0
+    required_datasets: tuple[str, ...] = ("schedules", "pbp")
+    allow_unknown_availability_for_research: bool = True
+
+
+class V2MarketConfig(StrictModel):
+    enabled: bool = False
+    provider: Literal["csv", "the_odds_api"] = "csv"
+    bookmaker: str | None = None
+    bookmakers: tuple[str, ...] = ()
+    settlement_rules: dict[str, dict[str, str]] = {}  # bookmaker -> market -> rule
+    max_quote_age_minutes: float = 60.0
+    main_markets: tuple[str, ...] = ("h2h", "spreads", "totals")
+
+
+class V2CollectionConfig(StrictModel):
+    timeout_seconds: float = 20.0
+    max_attempts_per_request: int = 3
+    request_budget_per_invocation: int = 4
+    quota_reserve: int = 50
+    sport_key: str = "americanfootball_nfl"
+    regions: str = "us"
+
+
+class V2ClosingProxyConfig(StrictModel):
+    window_minutes: float = 30.0
+
+
+class V2PaperConfig(StrictModel):
+    min_ev: float = 0.03
+    stake_units: float = 1.0
+    max_selections_per_game_per_model: int = 1
+    market_order: tuple[str, ...] = ("moneyline", "spread", "total")
+
+
+class V2EvaluationConfig(StrictModel):
+    bootstrap_replicates: int = 2000
+    seed: int = 42
+    min_blocks: int = 8
+    planned_review_games: int = 100
+    planned_review_blocks: int = 8
+    log_loss_epsilon: float = 1e-12
+
+
+class V2Config(StrictModel):
+    storage: V2StorageConfig = V2StorageConfig()
+    evidence: V2EvidenceConfig = V2EvidenceConfig()
+    models: V2ModelsConfig = V2ModelsConfig()
+    challenger: V2ChallengerConfig = V2ChallengerConfig()
+    horizon: V2HorizonConfig = V2HorizonConfig()
+    sources: V2SourcesConfig = V2SourcesConfig()
+    market: V2MarketConfig = V2MarketConfig()
+    collection: V2CollectionConfig = V2CollectionConfig()
+    closing_proxy: V2ClosingProxyConfig = V2ClosingProxyConfig()
+    paper: V2PaperConfig = V2PaperConfig()
+    evaluation: V2EvaluationConfig = V2EvaluationConfig()
+
+    @model_validator(mode="after")
+    def _check_market(self) -> V2Config:
+        m = self.market
+        if m.enabled:
+            books = tuple(m.bookmakers) or ((m.bookmaker,) if m.bookmaker else ())
+            if not books:
+                raise ValueError(
+                    "v2.market.enabled requires an explicit bookmaker (v2.market.bookmaker or "
+                    "v2.market.bookmakers); no default sportsbook is assumed"
+                )
+            if m.bookmaker is None:
+                raise ValueError("v2.market.bookmaker (the reference book) must be explicit")
+            for book in books:
+                rules = m.settlement_rules.get(book)
+                if not rules:
+                    raise ValueError(
+                        f"v2.market.settlement_rules must document rules for bookmaker {book!r} "
+                        "(e.g. moneyline: two_way_tie_void, spread: push_refund, "
+                        "total: push_refund)"
+                    )
+        if self.models.score_alpha != 100.0:
+            raise ValueError(
+                "V2 keeps the V1 Ridge alpha fixed at 100 for the distribution experiment"
+            )
+        if self.challenger.features != ("tie", "abs_margin_3", "abs_margin_7", "total_even"):
+            raise ValueError("the challenger feature set is fixed by the V2 protocol")
+        if any(lam <= 0 for lam in self.challenger.lambdas):
+            raise ValueError("challenger lambdas must be positive")
+        return self
+
+
 class ExperimentConfig(StrictModel):
     schema_version: int = 1
     seed: int = 42
@@ -133,6 +278,12 @@ class ExperimentConfig(StrictModel):
     distribution: DistributionConfig = DistributionConfig()
     evaluation: EvaluationConfig = EvaluationConfig()
     market: MarketConfig = MarketConfig()
+    v2: V2Config | None = None
+
+    def require_v2(self) -> V2Config:
+        if self.v2 is None:
+            raise InvalidInputError("this command needs a `v2:` section in the config")
+        return self.v2
 
     @model_validator(mode="after")
     def _check_consistency(self) -> ExperimentConfig:
