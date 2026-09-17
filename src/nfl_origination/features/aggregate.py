@@ -83,8 +83,15 @@ def aggregate_offense(plays: pd.DataFrame) -> pd.DataFrame:
     ).astype(float)
     agg = p.groupby(["game_id", "posteam"], as_index=False)[OFFENSE_NUMERIC].sum()
     if "first_observed_utc" in p.columns:
-        observed = p.groupby(["game_id", "posteam"], as_index=False)["first_observed_utc"].max()
-        observed = observed.rename(columns={"first_observed_utc": "pbp_first_observed_utc"})
+        p["first_observed_utc"] = _utc_or_fail(p["first_observed_utc"], "first_observed_utc")
+        observed = p.groupby(["game_id", "posteam"])["first_observed_utc"].agg(
+            ["max", "count", "size"]
+        )
+        # A known timestamp on another play cannot establish when an unknown play was seen.
+        observed["pbp_first_observed_utc"] = observed["max"].where(
+            observed["count"] == observed["size"], pd.NaT
+        )
+        observed = observed[["pbp_first_observed_utc"]].reset_index()
         agg = agg.merge(observed, on=["game_id", "posteam"], how="left")
     return agg.rename(columns={"posteam": "team_id"})
 
@@ -125,7 +132,14 @@ def aggregate_team_games(
     tg["game_count"] = tg["game_count"].astype(np.int64)
     pbp_observed = None
     if "pbp_first_observed_utc" in offense.columns:
-        pbp_observed = offense.groupby("game_id", as_index=False)["pbp_first_observed_utc"].max()
+        observed = offense.groupby("game_id")["pbp_first_observed_utc"].agg(
+            ["max", "count", "size"]
+        )
+        # Each perspective uses its offense and its opponent's offense for defensive metrics.
+        observed["pbp_first_observed_utc"] = observed["max"].where(
+            (observed["count"] == observed["size"]) & (observed["size"] == 2), pd.NaT
+        )
+        pbp_observed = observed[["pbp_first_observed_utc"]].reset_index()
         offense = offense.drop(columns=["pbp_first_observed_utc"])
     tg = tg.merge(offense, on=["game_id", "team_id"], how="left")
     opp_off = offense.rename(columns={"team_id": "opponent_id"}).rename(

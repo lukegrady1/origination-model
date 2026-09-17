@@ -103,6 +103,37 @@ boundary, NaT-safe observation-time combination. Commands: `build-features` (new
 live week 3 and week 1 reconstruction forecasts regenerated. Tests: 142 pass with network
 blocked (10 new in `tests/unit/test_followup_regressions.py`).
 
+## Codex implementation follow-up (2026-09-16)
+
+Inspected the already committed F1/F2 fixes at `064ebd3` and repaired remaining edge cases:
+
+- Unknown observation timestamps propagate through play-to-offense and offense-to-game
+  aggregation. One known timestamp cannot make an unknown contributing play/team eligible.
+- Feature cache keys include the manifest's first-observed timestamps and the actual requested
+  season list. Identical bytes observed at a different time cannot reuse stale availability
+  features; merely downloading the same observed version again does not change the key.
+- Training/forecast boundaries require `feature_version` as well as non-null boolean safety
+  flags. Missing versions, nulls, strings and numeric substitutes raise a domain validation error.
+
+Expanded `tests/unit/test_followup_regressions.py`: the newly exercised cases failed before
+the fixes; all 16 focused tests now pass. Final verification:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 NFL_ORIGINATION_BLOCK_NETWORK=1 .venv/bin/python -B -m pytest -q -o addopts='' -p no:cacheprovider
+# 148 passed in 96.11 seconds, including integration, dashboard and offline demo tests
+.venv/bin/ruff check . --no-cache
+.venv/bin/ruff format --check . --no-cache
+.venv/bin/mypy src/nfl_origination --cache-dir /tmp/nfl-codex-fixes-mypy
+git diff --check
+```
+
+All checks passed. A read-only normalization/aggregation smoke check against cached 2025 data
+returned 272 completed games, 544 team-game rows, full PBP coverage, and no missing combined
+observation times. No real-data training or holdout backtest was run. Frozen reports, protocol
+records and saved model bundles were not changed. Existing version-2 bundles retain their
+feature contract; subsequent dataset builds use the expanded cache key automatically. No new
+model family or feature was introduced.
+
 ## Unresolved blockers / open questions for planning
 
 - No timestamped odds source; market comparison and ROI remain "unavailable" on real data.

@@ -9,11 +9,11 @@ import pytest
 import yaml
 
 from nfl_origination.config import load_config
-from nfl_origination.data.download import SourceManifest
+from nfl_origination.data.download import SourceEntry, SourceManifest
 from nfl_origination.data.normalize import NormalizedData
 from nfl_origination.errors import ModelValidationError
-from nfl_origination.experiment import prepare_dataset
-from nfl_origination.features.aggregate import aggregate_team_games
+from nfl_origination.experiment import _feature_cache_key, prepare_dataset
+from nfl_origination.features.aggregate import aggregate_team_games, eligible_play_mask
 from nfl_origination.features.asof import AsOfPolicy
 from nfl_origination.features.builder import (
     build_features,
@@ -127,7 +127,7 @@ def test_f1_missing_safety_fields_cannot_pass_the_boundary(synthetic_small, poli
     games = synthetic_small.games[synthetic_small.games["season"] == 2016].head(2)
     feats = build_features(games, synthetic_small.team_games, policy, features_cfg)
     assert usable_rows(feats).all()
-    for col in ("unobserved_inputs", "insufficient_warmup"):
+    for col in ("unobserved_inputs", "insufficient_warmup", "feature_version"):
         with pytest.raises(ModelValidationError, match=col):
             usable_rows(feats.drop(columns=[col]))
         with pytest.raises(ModelValidationError, match=col):
@@ -136,6 +136,48 @@ def test_f1_missing_safety_fields_cannot_pass_the_boundary(synthetic_small, poli
     stale["feature_version"] = "1"
     with pytest.raises(ModelValidationError, match="feature_version"):
         usable_rows(stale)
+
+
+@pytest.mark.parametrize("bad_value", [None, "False", 0])
+def test_f1_safety_flags_must_be_nonnull_booleans(bad_value):
+    feats = pd.DataFrame(
+        {
+            "game_id": ["g"],
+            "feature_version": [FEATURE_VERSION],
+            "insufficient_warmup": [False],
+            "unobserved_inputs": [bad_value],
+        }
+    )
+    for boundary in (usable_rows, require_forecastable):
+        with pytest.raises(ModelValidationError, match="unobserved_inputs"):
+            boundary(feats)
+
+
+def test_f1_cache_key_tracks_observation_metadata_and_requested_seasons(tmp_path):
+    cfg = load_config(_real_source_config(tmp_path))
+    entry = SourceEntry(
+        dataset="pbp",
+        season=2023,
+        url="fixture",
+        path="fixture.parquet",
+        sha256="same-bytes",
+        bytes=1,
+        downloaded_at_utc=EARLY.isoformat(),
+        first_observed_at_utc=EARLY.isoformat(),
+        row_count=1,
+        columns=[],
+    )
+    manifest = SourceManifest(created_at_utc="x", offline=True, cache_dir="c", entries=[entry])
+    key = _feature_cache_key(cfg, manifest, [2023])
+    later = manifest.model_copy(
+        update={"entries": [entry.model_copy(update={"first_observed_at_utc": LATE.isoformat()})]}
+    )
+    assert _feature_cache_key(cfg, later, [2023]) != key
+    assert _feature_cache_key(cfg, manifest, [2022, 2023]) != key
+    fetched_again = manifest.model_copy(
+        update={"entries": [entry.model_copy(update={"downloaded_at_utc": LATE.isoformat()})]}
+    )
+    assert _feature_cache_key(cfg, fetched_again, [2023]) == key
 
 
 # ---------------------------------------------------------------------------------------- F2
@@ -181,6 +223,29 @@ def test_f2_missing_pbp_timestamp_column_is_unknown_not_known():
     tg = aggregate_team_games(games, plays, results)  # plays carry no observation column
     assert tg["first_observed_utc"].isna().all()
     assert (tg["schedule_first_observed_utc"] == EARLY).all()
+
+
+@pytest.mark.parametrize("entire_offense", [False, True])
+def test_f2_partially_unknown_plays_make_both_game_perspectives_ineligible(entire_offense):
+    games, plays, results = _mini_with(EARLY, EARLY)
+    eligible = plays[eligible_play_mask(plays)]
+    first = eligible.iloc[0]
+    missing = eligible.index[
+        (eligible["game_id"] == first.game_id) & (eligible["posteam"] == first.posteam)
+    ]
+    if not entire_offense:
+        missing = missing[:1]
+    plays.loc[missing, "first_observed_utc"] = pd.NaT
+    tg = aggregate_team_games(games, plays, results)
+    affected = tg[tg["game_id"] == first.game_id]
+    assert len(affected) == 2
+    assert affected["pbp_first_observed_utc"].isna().all()
+    assert affected["first_observed_utc"].isna().all()
+    assert tg.loc[tg["game_id"] != first.game_id, "first_observed_utc"].notna().all()
+    policy = AsOfPolicy(mode="recorded_asof")
+    assert not policy.eligible_mask(
+        affected["kickoff_utc"], ts("2024-06-01T00:00:00Z"), affected["first_observed_utc"]
+    ).any()
 
 
 def test_f2_unparseable_or_naive_timestamps_fail_deliberately():

@@ -382,13 +382,18 @@ AVAILABILITY_FIELDS = ("insufficient_warmup", "unobserved_inputs")
 
 def require_availability_fields(features: pd.DataFrame, context: str) -> None:
     """The availability flags are mandatory at every training/forecast boundary."""
-    missing = [c for c in AVAILABILITY_FIELDS if c not in features.columns]
+    missing = [c for c in (*AVAILABILITY_FIELDS, "feature_version") if c not in features.columns]
     if missing:
         raise ModelValidationError(
             f"{context}: feature rows lack availability fields {missing}; they were built by an "
             f"older feature version and must be rebuilt (current feature version {FEATURE_VERSION})"
         )
-    if "feature_version" in features.columns and len(features):
+    for col in AVAILABILITY_FIELDS:
+        if not pd.api.types.is_bool_dtype(features[col]) or features[col].isna().any():
+            raise ModelValidationError(
+                f"{context}: {col} must contain non-null boolean availability flags"
+            )
+    if len(features):
         versions = set(features["feature_version"].astype(str))
         if versions != {FEATURE_VERSION}:
             raise ModelValidationError(

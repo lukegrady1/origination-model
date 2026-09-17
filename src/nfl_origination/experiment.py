@@ -118,14 +118,21 @@ def policy_from_config(config: ExperimentConfig) -> AsOfPolicy:
     )
 
 
-def _feature_cache_key(config: ExperimentConfig, source_hashes: dict[str, str]) -> str:
+def _feature_cache_key(
+    config: ExperimentConfig, manifest: SourceManifest, seasons: list[int]
+) -> str:
     payload = {
-        "sources": source_hashes,
+        "sources": manifest.file_hashes(),
+        # Availability is part of a source's meaning, even when its bytes are unchanged.
+        "first_observed": {
+            f"{entry.dataset}/{entry.season or 'all'}": entry.first_observed_at_utc
+            for entry in manifest.entries
+        },
         "policy": policy_from_config(config).__dict__,
         "features": config.features.model_dump(),
         "feature_version": FEATURE_VERSION,
         "schema_version": SCHEMA_VERSION,
-        "seasons": config.data.seasons,
+        "seasons": sorted(set(seasons)),
     }
     return hash_json(payload)[:16]
 
@@ -179,7 +186,7 @@ def prepare_dataset(
     write_parquet(labels, norm_dir / "labels.parquet")
     exclusions.to_csv(norm_dir / "exclusions.csv", index=False)
     write_json(norm_dir / "coverage_report.json", coverage.model_dump())
-    key = _feature_cache_key(config, manifest.file_hashes())
+    key = _feature_cache_key(config, manifest, seasons)
     feat_path = config.data.features_dir / f"features_{key}.parquet"
     completed = data.games[data.games["status"] == "final"]
     cached = (
