@@ -1,0 +1,41 @@
+[
+  {
+    "id": "syn-evt-0001",
+    "sport_key": "americanfootball_nfl",
+    "sport_title": "NFL",
+    "commence_time": "2026-09-20T17:00:00Z",
+    "home_team": "Atlanta Falcons",
+    "away_team": "Carolina Panthers",
+    "bookmakers": [
+      {
+        "key": "synthetic_book",
+        "title": "Synthetic Book (fixture)",
+        "last_update": "2026-09-19T16:40:00Z",
+        "markets": [
+          {"key": "h2h", "last_update": "2026-09-19T16:40:00Z", "outcomes": [
+            {"name": "Atlanta Falcons", "price": 1.62}, {"name": "Carolina Panthers", "price": 2.40}]},
+          {"key": "spreads", "last_update": "2026-09-19T16:41:00Z", "outcomes": [
+            {"name": "Atlanta Falcons", "price": 1.91, "point": -3.0}, {"name": "Carolina Panthers", "price": 1.91, "point": 3.0}]},
+          {"key": "totals", "last_update": "2026-09-19T16:42:00Z", "outcomes": [
+            {"name": "Over", "price": 1.91, "point": 44.5}, {"name": "Under", "price": 1.91, "point": 44.5}]}
+        ]
+      },
+      {
+        "key": "other_book",
+        "title": "Other Book (fixture)",
+        "last_update": "2026-09-19T16:40:00Z",
+        "markets": [{"key": "h2h", "last_update": "2026-09-19T16:40:00Z", "outcomes": [
+          {"name": "Atlanta Falcons", "price": 1.60}, {"name": "Carolina Panthers", "price": 2.45}]}]
+      }
+    ]
+  },
+  {
+    "id": "syn-evt-0002",
+    "sport_key": "americanfootball_nfl",
+    "sport_title": "NFL",
+    "commence_time": "2026-09-20T20:25:00Z",
+    "home_team": "Nonexistent Team",
+    "away_team": "Seattle Seahawks",
+    "bookmakers": []
+  }
+]

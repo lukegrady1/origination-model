@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,17 @@ ODDS_CSV_COLUMNS = [
     "kickoff_at_snapshot_utc",
     "settlement_rule",
 ]
+# V2 optional columns; absent columns get explicit defaults (never silently "live").
+ODDS_CSV_OPTIONAL = [
+    "provider",
+    "receipt_id",
+    "raw_hash",
+    "observed_at_utc",
+    "provenance_mode",
+    "market_role",
+]
+PROVENANCE_MODES = {"historical_csv", "live_collected", "synthetic"}
+MARKET_ROLES = {"main", "alternate"}
 MARKET_SELECTIONS = {
     "moneyline": {"home", "away"},
     "spread": {"home", "away"},
@@ -53,6 +65,28 @@ class OddsImportReport(BaseModel):
         for r in self.rejected:
             reasons[r["reason"]] = reasons.get(r["reason"], 0) + 1
         return {"rows_in": self.rows_in, "rows_accepted": self.rows_accepted, "rejected": reasons}
+
+
+def pair_ids(odds: pd.DataFrame) -> pd.Series:
+    """Stable pair identity: book, game, market, unordered line pair, snapshot, role.
+
+    Both sides of a complete pair share the id; a spread pair is identified by |line|.
+    """
+    keys = []
+    for r in odds.itertuples(index=False):
+        line = "" if pd.isna(r.line) else f"{abs(float(r.line)):g}"
+        raw = "|".join(
+            [
+                str(r.bookmaker),
+                str(r.game_id),
+                str(r.market),
+                line,
+                pd.Timestamp(r.snapshot_at_utc).isoformat(),
+                str(getattr(r, "market_role", "main")),
+            ]
+        )
+        keys.append(hashlib.sha256(raw.encode()).hexdigest()[:20])
+    return pd.Series(keys, index=odds.index, dtype="object")
 
 
 def _parse_utc(series: pd.Series) -> pd.Series:
@@ -81,7 +115,23 @@ def import_odds(
         raise InvalidInputError(f"odds CSV is missing required columns {missing}")
     ingested = utc_now()
     rejected: list[dict[str, Any]] = []
-    df = raw[ODDS_CSV_COLUMNS].copy()
+    file_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+    for col in ODDS_CSV_OPTIONAL:
+        if col not in raw.columns:
+            raw[col] = ""
+    df = raw[ODDS_CSV_COLUMNS + ODDS_CSV_OPTIONAL].copy()
+    # A CSV import is a *local* observation at import time unless the row carries its own
+    # collector observation time (live adapter output). Supplied snapshot times are preserved
+    # separately; a late import can never qualify as a prospective decision.
+    df["provider"] = df["provider"].replace("", "csv")
+    df["provenance_mode"] = df["provenance_mode"].replace(
+        "", "synthetic" if synthetic else "historical_csv"
+    )
+    df["market_role"] = df["market_role"].replace("", "main")
+    df["raw_hash"] = df["raw_hash"].replace("", file_hash)
+    parsed_observed = _parse_utc(df["observed_at_utc"]).astype("datetime64[us, UTC]")
+    import_time = pd.Timestamp(ingested).as_unit("us")
+    df["observed_at_parsed"] = parsed_observed.where(df["observed_at_utc"] != "", import_time)
     for c in ("snapshot_at_utc", "bookmaker_updated_at_utc", "kickoff_at_snapshot_utc"):
         df[c] = _parse_utc(df[c])
     df["line_num"] = pd.to_numeric(df["line"].replace("", np.nan), errors="coerce")
@@ -149,6 +199,18 @@ def import_odds(
             reject(idx, "unsupported_moneyline_rule", row["settlement_rule"])
             keep[idx] = False
             continue
+        if row["provenance_mode"] not in PROVENANCE_MODES:
+            reject(idx, "unknown_provenance_mode", row["provenance_mode"])
+            keep[idx] = False
+            continue
+        if row["market_role"] not in MARKET_ROLES:
+            reject(idx, "unknown_market_role", row["market_role"])
+            keep[idx] = False
+            continue
+        if row["observed_at_utc"] != "" and pd.isna(row["observed_at_parsed"]):
+            reject(idx, "invalid_observed_timestamp")
+            keep[idx] = False
+            continue
         if games is not None:
             gid = row["game_id"]
             match = games[games["game_id"] == gid] if gid else games.iloc[0:0]
@@ -203,10 +265,22 @@ def import_odds(
             "settlement_rule": accepted["settlement_rule"].astype(str),
             "ingested_at_utc": pd.Timestamp(ingested),
             "synthetic": bool(synthetic),
+            "provider": accepted["provider"].astype(str),
+            "receipt_id": accepted["receipt_id"].astype(str),
+            "raw_hash": accepted["raw_hash"].astype(str),
+            "observed_at_utc": accepted["observed_at_parsed"],
+            "provenance_mode": accepted["provenance_mode"].astype(str),
+            "market_role": accepted["market_role"].astype(str),
         }
     ).reset_index(drop=True)
-    for c in ("snapshot_at_utc", "bookmaker_updated_at_utc", "kickoff_at_snapshot_utc"):
+    for c in (
+        "snapshot_at_utc",
+        "bookmaker_updated_at_utc",
+        "kickoff_at_snapshot_utc",
+        "observed_at_utc",
+    ):
         odds[c] = pd.to_datetime(odds[c], utc=True)
+    odds["pair_id"] = pair_ids(odds)
     validate_frame(odds, ODDS_SCHEMA)
     out = None
     if output_path is not None:

@@ -305,6 +305,16 @@ ODDS_SCHEMA = ArtifactSchema(
         "ingested_at_utc": "datetime",
         "synthetic": "bool",
     },
+    optional={
+        # V2 extended contract
+        "provider": "str",
+        "receipt_id": "str",
+        "raw_hash": "str",
+        "observed_at_utc": "datetime",
+        "provenance_mode": "str",
+        "pair_id": "str",
+        "market_role": "str",
+    },
 )
 
 PAPER_BETS_SCHEMA = ArtifactSchema(

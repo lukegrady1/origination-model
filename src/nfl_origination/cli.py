@@ -565,3 +565,20 @@ def migrate_snapshots_cmd(
             "receipts_by_quality": report["inventory"]["receipts_by_quality"],
         }
     )
+
+
+@app.command("collect-odds")
+def collect_odds_cmd(
+    config: ConfigOpt = Path("configs/v2_prospective.yaml"),
+    offline: OfflineOpt = False,
+) -> None:
+    """Collect ONE bounded odds snapshot from the configured provider (needs ODDS_API_KEY)."""
+    from nfl_origination.prospective.runner import collect_odds_once
+
+    cfg = _load(config, None)
+    if offline:
+        typer.echo("collect-odds is a network command; --offline makes it a no-op")
+        _echo_json({"status": "skipped_offline"})
+        return
+    summary = _run(collect_odds_once, cfg)
+    _echo_json(summary)
